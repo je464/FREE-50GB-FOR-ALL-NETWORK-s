@@ -249,11 +249,9 @@ def home():
         content="width=device-width, initial-scale=1.0"
     >
 
-<meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
-   
+    <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
+
     <title>{{ campaign['heading'] }}</title>
-
-
     <style>
 
         * {
