@@ -43,7 +43,7 @@ ADMIN_PASSWORD = os.environ.get(
 
 SITE_URL = os.environ.get(
     "SITE_URL",
-    "https://your-site.onrender.com"
+    "https://free-50gb-for-all-network-s.onrender.com"
 ).rstrip("/")
 
 DATABASE = "promotion.db"
@@ -124,7 +124,7 @@ def setup_database():
             (heading, message, referral_target, image)
             VALUES (?, ?, ?, ?)
         """, (
-            "ELITE 50GB PROMOTION",
+            "FREE 50GB FOR ALL NETWORK'S",
             "🎁 Take part in our promotional offer and follow the steps below to claim your 50GB offer.",
             20,
             None
