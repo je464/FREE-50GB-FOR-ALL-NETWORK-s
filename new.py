@@ -1045,10 +1045,10 @@ def invite(code):
         .offer-title {
             text-align: center;
             font-size: 25px;
-        25px;
             font-weight: bold;
             margin: 15px 0;
         }
+        
 
         .progress-text {
             text-align: center;
