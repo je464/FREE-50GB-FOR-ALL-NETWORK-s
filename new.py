@@ -244,16 +244,15 @@ def home():
 
     <meta charset="UTF-8">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
 
     <title>{{ campaign['heading'] }}</title>
-    <style>
 
+    <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
+
+    <style>
         * {
             box-sizing: border-box;
         }
