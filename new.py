@@ -825,9 +825,7 @@ def join_referral(referrer):
                 value="{{ referrer }}"
             >
 
-            <button type="submit" onclick="window.open('https://uplcm.com/4/11985707', '_blank')" style="background:#00c853; color:white; padding:15px 30px; border:none; border-radius:8px; font-size:18px; font-weight:bold; cursor:pointer; width:100%;">
-  CONTINUE TO UNLOCK 🔓
-</button>
+            
 
         </form>
 
