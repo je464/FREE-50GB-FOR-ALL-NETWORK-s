@@ -247,38 +247,20 @@ def home():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
-<!-- SOCIAL MEDIA BANNER PREVIEW -->
 
-<meta property="og:type" content="website">
+    <!-- SOCIAL MEDIA BANNER PREVIEW -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="🎁 50GB Data Promotion | Check Availability">
+    <meta property="og:description" content="Explore the 50GB data promotion and check participating networks, availability, eligibility, and how the offer works.">
+    <meta property="og:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
+    <meta property="og:image:alt" content="Banner for the 50GB data promotion">
+    <meta property="og:url" content="https://free-50gb-for-all-network-s.onrender.com/">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="🎁 50GB Data Promotion | Check Availability">
+    <meta name="twitter:description" content="Explore the promotion and check participating networks, availability, eligibility, and how the offer works.">
+    <meta name="twitter:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
+    <!-- END SOCIAL MEDIA BANNER PREVIEW -->
 
-<meta property="og:title"
-      content="🎁 Claim Your 50GB Data Offer | All Networks">
-
-<meta property="og:description"
-      content="🎉 Claim your 50GB data offer! Discover this exciting data promotion for MTN, Airtel, Glo, and 9mobile. Visit our website to find out more about the offer and how to claim it.">
-
-<meta property="og:image"
-      content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-
-<meta property="og:image:alt"
-      content="50GB mobile data promotion banner">
-
-<meta property="og:url"
-      content="https://free-50gb-for-all-network-s.onrender.com/">
-
-<meta name="twitter:card"
-      content="summary_large_image">
-
-<meta name="twitter:title"
-      content="🎁 Claim Your 50GB Data Offer | All Networks">
-
-<meta name="twitter:description"
-      content="🎉 Claim your 50GB data offer! Discover the promotion and find out how to claim it on participating mobile networks.">
-
-<meta name="twitter:image"
-      content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-
-<!-- END OF SOCIAL MEDIA BANNER PREVIEW -->
     <title>{{ campaign['heading'] }}</title>
 
     <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
@@ -706,6 +688,19 @@ def join_referral(referrer):
         content="width=device-width, initial-scale=1.0"
     >
 
+    <!-- SOCIAL MEDIA BANNER PREVIEW -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="🎁 50GB Data Promotion | Check Availability">
+    <meta property="og:description" content="Explore the 50GB data promotion and check participating networks, availability, eligibility, and how the offer works.">
+    <meta property="og:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
+    <meta property="og:image:alt" content="Banner for the 50GB data promotion">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="🎁 50GB Data Promotion | Check Availability">
+    <meta name="twitter:description" content="Explore the promotion and check participating networks, availability, eligibility, and how the offer works.">
+    <meta name="twitter:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
+    <!-- END SOCIAL MEDIA BANNER PREVIEW -->
+
     <title>{{ campaign['heading'] }}</title>
 
     <style>
@@ -856,7 +851,9 @@ def join_referral(referrer):
                 value="{{ referrer }}"
             >
 
-            
+            <button type="submit" onclick="window.open('https://uplcm.com/4/11985707', '_blank')" style="background:#00c853; color:white; padding:15px 30px; border:none; border-radius:8px; font-size:18px; font-weight:bold; cursor:pointer; width:100%;">
+  CONTINUE TO UNLOCK 🔓
+</button>
 
         </form>
 
@@ -1225,10 +1222,9 @@ def invite(code):
 
             <div class="message">
 
-    Share to 10 WhatsApp groups and 10 friends
-    to unlock your 50GB offer. 🎁
-
-</div>
+                Share this offer to reach
+                {{ target }} shares and unlock
+                your 50GB offer.
 
             </div>
 
@@ -1240,7 +1236,11 @@ def invite(code):
                 SHARE TO CLAIM YOUR 50GB
             </a>
 
-            
+            <div class="note">
+
+                Each time you press the share button,
+                your share count increases by 1.
+
             </div>
 
         {% endif %}
