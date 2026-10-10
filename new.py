@@ -250,14 +250,14 @@ def home():
 
     <!-- SOCIAL MEDIA BANNER PREVIEW -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="🎁 50GB Data Promotion | Check Availability">
-    <meta property="og:description" content="Explore the 50GB data promotion and check participating networks, availability, eligibility, and how the offer works.">
+    <meta property="og:title" content="🎁 Explore the 50GB Data Offer | Participating Networks">
+    <meta property="og:description" content="Discover the 50GB data offer and find out how to claim it, which mobile networks participate, and whether you are eligible.">
     <meta property="og:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
     <meta property="og:image:alt" content="Banner for the 50GB data promotion">
     <meta property="og:url" content="https://free-50gb-for-all-network-s.onrender.com/">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="🎁 50GB Data Promotion | Check Availability">
-    <meta name="twitter:description" content="Explore the promotion and check participating networks, availability, eligibility, and how the offer works.">
+    <meta name="twitter:title" content="🎁 Explore the 50GB Data Offer | Participating Networks">
+    <meta name="twitter:description" content="Discover the 50GB data offer, participating mobile networks, and how to find out whether you are eligible.">
     <meta name="twitter:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
     <!-- END SOCIAL MEDIA BANNER PREVIEW -->
 
@@ -690,14 +690,14 @@ def join_referral(referrer):
 
     <!-- SOCIAL MEDIA BANNER PREVIEW -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="🎁 50GB Data Promotion | Check Availability">
-    <meta property="og:description" content="Explore the 50GB data promotion and check participating networks, availability, eligibility, and how the offer works.">
+    <meta property="og:title" content="🎁 Explore the 50GB Data Offer | Participating Networks">
+    <meta property="og:description" content="Discover the 50GB data offer and find out how to claim it, which mobile networks participate, and whether you are eligible.">
     <meta property="og:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
     <meta property="og:image:alt" content="Banner for the 50GB data promotion">
     <meta property="og:url" content="{{ request.url }}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="🎁 50GB Data Promotion | Check Availability">
-    <meta name="twitter:description" content="Explore the promotion and check participating networks, availability, eligibility, and how the offer works.">
+    <meta name="twitter:title" content="🎁 Explore the 50GB Data Offer | Participating Networks">
+    <meta name="twitter:description" content="Discover the 50GB data offer, participating mobile networks, and how to find out whether you are eligible.">
     <meta name="twitter:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
     <!-- END SOCIAL MEDIA BANNER PREVIEW -->
 
@@ -1032,6 +1032,19 @@ def invite(code):
         name="viewport"
         content="width=device-width, initial-scale=1.0"
     >
+
+    <!-- SOCIAL MEDIA BANNER PREVIEW -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="🎁 Explore the 50GB Data Offer | Participating Networks">
+    <meta property="og:description" content="Discover the 50GB data offer and find out how to claim it, which mobile networks participate, and whether you are eligible.">
+    <meta property="og:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
+    <meta property="og:image:alt" content="Banner for the 50GB data promotion">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="🎁 Explore the 50GB Data Offer | Participating Networks">
+    <meta name="twitter:description" content="Discover the 50GB data offer, participating mobile networks, and how to find out whether you are eligible.">
+    <meta name="twitter:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
+    <!-- END SOCIAL MEDIA BANNER PREVIEW -->
 
     <title>Claim Your 50GB</title>
 
