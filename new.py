@@ -247,7 +247,38 @@ def home():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
+<!-- SOCIAL MEDIA BANNER PREVIEW -->
 
+<meta property="og:type" content="website">
+
+<meta property="og:title"
+      content="🎁 Claim Your 50GB Data Offer | All Networks">
+
+<meta property="og:description"
+      content="🎉 Claim your 50GB data offer! Discover this exciting data promotion for MTN, Airtel, Glo, and 9mobile. Visit our website to find out more about the offer and how to claim it.">
+
+<meta property="og:image"
+      content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
+
+<meta property="og:image:alt"
+      content="50GB mobile data promotion banner">
+
+<meta property="og:url"
+      content="https://free-50gb-for-all-network-s.onrender.com/">
+
+<meta name="twitter:card"
+      content="summary_large_image">
+
+<meta name="twitter:title"
+      content="🎁 Claim Your 50GB Data Offer | All Networks">
+
+<meta name="twitter:description"
+      content="🎉 Claim your 50GB data offer! Discover the promotion and find out how to claim it on participating mobile networks.">
+
+<meta name="twitter:image"
+      content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
+
+<!-- END OF SOCIAL MEDIA BANNER PREVIEW -->
     <title>{{ campaign['heading'] }}</title>
 
     <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
