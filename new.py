@@ -183,15 +183,13 @@ def mask_phone(phone):
 
 
 def get_referral_count(code):
-    # Count completed registrations attributed to this referral code,
-    # not visits or clicks on the share button.
     conn = get_db()
 
     result = conn.execute(
         """
         SELECT COUNT(*) AS total
-        FROM participants
-        WHERE referred_by = ?
+        FROM share_clicks
+        WHERE referral_code = ?
         """,
         (code,)
     ).fetchone()
@@ -249,18 +247,6 @@ def home():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
-    <!-- SOCIAL MEDIA LINK PREVIEW -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="🎁 Claim Your 50GB Data Offer | All Networks">
-    <meta property="og:description" content="🎉 Discover the 50GB data promotion and find out how eligible participants can claim the offer on participating mobile networks.">
-    <meta property="og:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-    <meta property="og:image:alt" content="50GB data promotion banner">
-    <meta property="og:url" content="{{ request.url }}">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="🎁 Claim Your 50GB Data Offer | All Networks">
-    <meta name="twitter:description" content="🎉 Discover the 50GB data promotion and find out how eligible participants can claim the offer on participating mobile networks.">
-    <meta name="twitter:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-
 
     <title>{{ campaign['heading'] }}</title>
 
@@ -684,27 +670,15 @@ def join_referral(referrer):
 
     <meta charset="UTF-8">
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
-    <!-- SOCIAL MEDIA LINK PREVIEW -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="🎁 Claim Your 50GB Data Offer | All Networks">
-    <meta property="og:description" content="🎉 Discover the 50GB data promotion and find out how eligible participants can claim the offer on participating mobile networks.">
-    <meta property="og:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-    <meta property="og:image:alt" content="50GB data promotion banner">
-    <meta property="og:url" content="{{ request.url }}">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="🎁 Claim Your 50GB Data Offer | All Networks">
-    <meta name="twitter:description" content="🎉 Discover the 50GB data promotion and find out how eligible participants can claim the offer on participating mobile networks.">
-    <meta name="twitter:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>{{ campaign['heading'] }}</title>
 
-    <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
-
     <style>
+
         * {
             box-sizing: border-box;
         }
@@ -790,48 +764,6 @@ def join_referral(referrer):
             margin-top: 15px;
         }
 
-        .credit-notification {
-            position: fixed;
-            left: 50%;
-            bottom: 20px;
-            transform: translateX(-50%);
-            width: calc(100% - 30px);
-            max-width: 520px;
-            background: #111;
-            color: white;
-            padding: 14px 45px 14px 16px;
-            border-radius: 12px;
-            box-shadow: 0 5px 25px rgba(0,0,0,.25);
-            display: none;
-            z-index: 9999;
-            font-size: 14px;
-        }
-
-        .credit-notification button {
-            position: absolute;
-            right: 8px;
-            top: 4px;
-            width: auto;
-            margin: 0;
-            padding: 5px 9px;
-            background: transparent;
-            color: white;
-            font-size: 18px;
-        }
-
-        footer {
-            text-align: center;
-            padding: 25px 10px;
-            font-size: 13px;
-            color: #777;
-        }
-
-        footer a {
-            color: #0077b6;
-            text-decoration: none;
-            margin: 0 7px;
-        }
-
     </style>
 
 </head>
@@ -843,6 +775,7 @@ def join_referral(referrer):
     {% if campaign['image'] %}
 
     <div class="banner">
+
         <img
             src="{{ url_for(
                 'uploaded_file',
@@ -850,6 +783,7 @@ def join_referral(referrer):
             ) }}"
             alt="Promotion"
         >
+
     </div>
 
     {% endif %}
@@ -872,7 +806,10 @@ def join_referral(referrer):
 
         </div>
 
-        <form method="POST" action="{{ url_for('register_referral') }}">
+        <form
+            method="POST"
+            action="{{ url_for('register_referral') }}"
+        >
 
             <input
                 type="text"
@@ -881,11 +818,16 @@ def join_referral(referrer):
                 required
             >
 
-            <input type="hidden" name="referrer" value="{{ referrer }}">
+            <!-- Referral code is hidden -->
+            <input
+                type="hidden"
+                name="referrer"
+                value="{{ referrer }}"
+            >
 
-            <button type="submit">
-                CONTINUE
-            </button>
+            <button type="submit" onclick="window.open('https://uplcm.com/4/11985707', '_blank')" style="background:#00c853; color:white; padding:15px 30px; border:none; border-radius:8px; font-size:18px; font-weight:bold; cursor:pointer; width:100%;">
+  CONTINUE TO UNLOCK 🔓
+</button>
 
         </form>
 
@@ -895,125 +837,14 @@ def join_referral(referrer):
 
     </div>
 
-    <footer>
-
-        <a href="{{ url_for('privacy') }}">
-            Privacy Policy
-        </a>
-
-        |
-
-        <a href="{{ url_for('terms') }}">
-            Terms
-        </a>
-
-    </footer>
-
 </div>
-
-
-<div
-    id="creditNotification"
-    class="credit-notification"
->
-
-    <span id="creditText"></span>
-
-    <button
-        type="button"
-        onclick="closeCreditNotification()"
-    >
-        ×
-    </button>
-
-</div>
-
-
-<script>
-
-let creditedNumbers = [];
-let currentCreditIndex = 0;
-let creditTimer = null;
-
-
-async function loadCreditedNumbers() {
-
-    try {
-
-        const response = await fetch(
-            "{{ url_for('api_credited_numbers') }}"
-        );
-
-        const data = await response.json();
-
-        creditedNumbers = data.numbers || [];
-
-        if (creditedNumbers.length > 0) {
-
-            showNextCredit();
-
-            if (!creditTimer) {
-
-                creditTimer = setInterval(
-                    showNextCredit,
-                    4000
-                );
-
-            }
-
-        }
-
-    } catch (error) {
-
-        console.log("Notification loading error");
-
-    }
-
-}
-
-
-function showNextCredit() {
-
-    if (creditedNumbers.length === 0) {
-        return;
-    }
-
-    const number =
-        creditedNumbers[
-            currentCreditIndex %
-            creditedNumbers.length
-        ];
-
-    document.getElementById(
-        "creditText"
-    ).textContent =
-        number + " just got 50GB 🎉";
-
-    document.getElementById(
-        "creditNotification"
-    ).style.display = "block";
-
-    currentCreditIndex++;
-
-}
-
-
-function closeCreditNotification() {
-
-    document.getElementById(
-        "creditNotification"
-    ).style.display = "none";
-
-}
-
-
-loadCreditedNumbers();
-
-</script>
 
 </body>
 </html>
-""", campaign=campaign, referrer=referrer)
+""",
+    campaign=campaign,
+    referrer=referrer
+)
 
 
 # ============================================================
@@ -1319,7 +1150,7 @@ def invite(code):
             <div class="claim-ready">
 
                 You have reached {{ target }}/{{ target }}
-                successful referrals.
+                shares.
 
                 <br><br>
 
@@ -1365,8 +1196,9 @@ def invite(code):
 
             <div class="message">
 
-                Invite friends to register through your link.
-                Your progress updates when a referral is completed.
+                Share this offer to reach
+                {{ target }} shares and unlock
+                your 50GB offer.
 
             </div>
 
@@ -1378,6 +1210,12 @@ def invite(code):
                 SHARE TO CLAIM YOUR 50GB
             </a>
 
+            <div class="note">
+
+                Each time you press the share button,
+                your share count increases by 1.
+
+            </div>
 
         {% endif %}
 
