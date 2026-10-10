@@ -163,13 +163,6 @@ def allowed_file(filename):
 
 
 def mask_phone(phone):
-    """
-    Store/display only a masked version publicly.
-
-    Example:
-    08031234567 -> 0803****567
-    """
-
     digits = "".join(
         character
         for character in phone
@@ -183,32 +176,13 @@ def mask_phone(phone):
 
 
 def get_referral_count(code):
-    # Count completed registrations attributed to this referral code,
-    # not visits or clicks on the share button.
     conn = get_db()
 
     result = conn.execute(
         """
         SELECT COUNT(*) AS total
-        FROM participants
-        WHERE referred_by = ?
-        """,
-        (code,)
-    ).fetchone()
-
-    conn.close()
-
-    return result["total"]
-
-
-def get_registration_count(code):
-    conn = get_db()
-
-    result = conn.execute(
-        """
-        SELECT COUNT(*) AS total
-        FROM participants
-        WHERE referred_by = ?
+        FROM share_clicks
+        WHERE referral_code = ?
         """,
         (code,)
     ).fetchone()
@@ -238,6 +212,7 @@ def admin_required(function):
 def home():
 
     campaign = get_campaign()
+    og_image = url_for('uploaded_file', filename=campaign['image'], _external=True) if campaign['image'] else ""
 
     return render_template_string("""
 <!DOCTYPE html>
@@ -249,20 +224,14 @@ def home():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
-    <!-- SOCIAL MEDIA LINK PREVIEW -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="🎁 Claim Your 50GB Data Offer | All Networks">
-    <meta property="og:description" content="🎉 Discover the 50GB data promotion and find out how eligible participants can claim the offer on participating mobile networks.">
-    <meta property="og:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-    <meta property="og:image:alt" content="50GB data promotion banner">
-    <meta property="og:url" content="{{ request.url }}">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="🎁 Claim Your 50GB Data Offer | All Networks">
-    <meta name="twitter:description" content="🎉 Discover the 50GB data promotion and find out how eligible participants can claim the offer on participating mobile networks.">
-    <meta name="twitter:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-
 
     <title>{{ campaign['heading'] }}</title>
+
+    <!-- Social Media Open Graph Tags -->
+    <meta property="og:title" content="{{ campaign['heading'] }}">
+    <meta property="og:description" content="{{ campaign['message'] }}">
+    <meta property="og:image" content="{{ og_image }}">
+    <meta property="og:type" content="website">
 
     <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
 
@@ -573,7 +542,7 @@ loadCreditedNumbers();
 
 </body>
 </html>
-""", campaign=campaign)
+""", campaign=campaign, og_image=og_image)
 
 
 # ============================================================
@@ -645,7 +614,7 @@ def claim():
 
 
 # ============================================================
-# REFERRAL LANDING PAGE
+# REFERRAL LANDING PAGE (UPDATED TO MATCH HOME PAGE EXACTLY)
 # ============================================================
 
 @app.route("/join/<referrer>")
@@ -668,14 +637,7 @@ def join_referral(referrer):
         return redirect(url_for("home"))
 
     campaign = get_campaign()
-
-    # IMPORTANT:
-    # This page deliberately uses the same visual promotion
-    # as the normal home page.
-    #
-    # The visitor does NOT see a special referral page.
-    #
-    # The referrer code is simply kept hidden in the form.
+    og_image = url_for('uploaded_file', filename=campaign['image'], _external=True) if campaign['image'] else ""
 
     return render_template_string("""
 <!DOCTYPE html>
@@ -687,20 +649,14 @@ def join_referral(referrer):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
-    <!-- SOCIAL MEDIA LINK PREVIEW -->
-    <meta property="og:type" content="website">
-    <meta property="og:title" content="🎁 Claim Your 50GB Data Offer | All Networks">
-    <meta property="og:description" content="🎉 Discover the 50GB data promotion and find out how eligible participants can claim the offer on participating mobile networks.">
-    <meta property="og:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-    <meta property="og:image:alt" content="50GB data promotion banner">
-    <meta property="og:url" content="{{ request.url }}">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="🎁 Claim Your 50GB Data Offer | All Networks">
-    <meta name="twitter:description" content="🎉 Discover the 50GB data promotion and find out how eligible participants can claim the offer on participating mobile networks.">
-    <meta name="twitter:image" content="https://free-50gb-for-all-network-s.onrender.com/uploads/banner.jpg">
-
 
     <title>{{ campaign['heading'] }}</title>
+
+    <!-- Social Media Open Graph Tags -->
+    <meta property="og:title" content="{{ campaign['heading'] }}">
+    <meta property="og:description" content="{{ campaign['message'] }}">
+    <meta property="og:image" content="{{ og_image }}">
+    <meta property="og:type" content="website">
 
     <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
 
@@ -881,7 +837,11 @@ def join_referral(referrer):
                 required
             >
 
-            <input type="hidden" name="referrer" value="{{ referrer }}">
+            <input
+                type="hidden"
+                name="referrer"
+                value="{{ referrer }}"
+            >
 
             <button type="submit">
                 CONTINUE
@@ -1013,7 +973,11 @@ loadCreditedNumbers();
 
 </body>
 </html>
-""", campaign=campaign, referrer=referrer)
+""",
+    campaign=campaign,
+    referrer=referrer,
+    og_image=og_image
+)
 
 
 # ============================================================
@@ -1038,9 +1002,6 @@ def register_referral():
 
     conn = get_db()
 
-    # If this phone already exists, send the person
-    # to their existing personal page.
-
     existing = conn.execute(
         """
         SELECT referral_code
@@ -1060,8 +1021,6 @@ def register_referral():
                 code=existing["referral_code"]
             )
         )
-
-    # Verify the referral code.
 
     referrer_user = conn.execute(
         """
@@ -1163,6 +1122,8 @@ def invite(code):
         "https://wa.me/?text="
         + quote(whatsapp_message)
     )
+    
+    og_image = url_for('uploaded_file', filename=campaign['image'], _external=True) if campaign['image'] else ""
 
     return render_template_string("""
 <!DOCTYPE html>
@@ -1171,12 +1132,15 @@ def invite(code):
 
     <meta charset="UTF-8">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Claim Your 50GB</title>
+
+    <!-- Social Media Open Graph Tags -->
+    <meta property="og:title" content="{{ campaign['heading'] }}">
+    <meta property="og:description" content="{{ campaign['message'] }}">
+    <meta property="og:image" content="{{ og_image }}">
+    <meta property="og:type" content="website">
 
     <style>
 
@@ -1217,7 +1181,6 @@ def invite(code):
             font-weight: bold;
             margin: 15px 0;
         }
-        
 
         .progress-text {
             text-align: center;
@@ -1319,19 +1282,13 @@ def invite(code):
             <div class="claim-ready">
 
                 You have reached {{ target }}/{{ target }}
-                successful referrals.
+                shares.
 
                 <br><br>
 
                 Your 50GB offer is now ready to be claimed.
 
             </div>
-
-            <!--
-                IMPORTANT:
-                This button does NOT open WhatsApp.
-                It is simply present on the page at 20/20.
-            -->
 
             <button
                 type="button"
@@ -1364,10 +1321,8 @@ def invite(code):
             </div>
 
             <div class="message">
-
-                Invite friends to register through your link.
-                Your progress updates when a referral is completed.
-
+                Share to 10 WhatsApp groups and 10 friends
+                to unlock your 50GB offer. 🎁
             </div>
 
             <a
@@ -1378,6 +1333,7 @@ def invite(code):
                 SHARE TO CLAIM YOUR 50GB
             </a>
 
+            <div class="note"></div>
 
         {% endif %}
 
@@ -1453,7 +1409,8 @@ document
             int((count / target) * 100)
             if target > 0 else 0
         ),
-        whatsapp_url=whatsapp_url
+        whatsapp_url=whatsapp_url,
+        og_image=og_image
     )
 
 
@@ -1507,8 +1464,6 @@ def record_share(code):
         """,
         (code,)
     ).fetchone()["total"]
-
-    # Do not allow the counter to go beyond the target.
 
     if current_count < target:
 
@@ -2242,9 +2197,6 @@ def admin_credited_numbers():
             ""
         )
 
-        # Accept one number per line,
-        # or numbers separated by commas.
-
         raw_numbers = raw_numbers.replace(
             ",",
             "\n"
@@ -2677,25 +2629,8 @@ def terms():
 
     <p>
         By participating in this promotion, you agree to
-        provide accurate information and use the promotion
-        only for its intended purpose.
-    </p>
-
-    <p>
-        Referral activity is tracked according to the
-        promotion's share-click system.
-    </p>
-
-    <p>
-        Reaching the displayed referral target means that
-        the participant has completed the required share
-        count. Any actual fulfilment of an offer should be
-        handled by the promotion administrator.
-    </p>
-
-    <p>
-        The promotion administrator may update or end the
-        promotion when necessary.
+        provide accurate information and use the platform
+        responsibly.
     </p>
 
     <a href="{{ url_for('home') }}">
@@ -2763,5 +2698,3 @@ if __name__ == "__main__":
         port=port,
         debug=debug_mode
     )
-
- 
