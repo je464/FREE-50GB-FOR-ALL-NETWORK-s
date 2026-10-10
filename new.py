@@ -825,9 +825,7 @@ def join_referral(referrer):
                 value="{{ referrer }}"
             >
 
-            <button type="submit" onclick="window.open('https://uplcm.com/4/11985707', '_blank')" style="background:#00c853; color:white; padding:15px 30px; border:none; border-radius:8px; font-size:18px; font-weight:bold; cursor:pointer; width:100%;">
-  CONTINUE TO UNLOCK 🔓
-</button>
+            
 
         </form>
 
@@ -1196,11 +1194,10 @@ def invite(code):
 
             <div class="message">
 
-                Share this offer to reach
-                {{ target }} shares and unlock
-                your 50GB offer.
+    Share to 10 WhatsApp groups and 10 friends
+    to unlock your 50GB offer. 🎁
 
-            </div>
+</div>
 
             <a
                 href="{{ whatsapp_url }}"
@@ -1212,9 +1209,7 @@ def invite(code):
 
             <div class="note">
 
-                Each time you press the share button,
-                your share count increases by 1.
-
+                
             </div>
 
         {% endif %}
