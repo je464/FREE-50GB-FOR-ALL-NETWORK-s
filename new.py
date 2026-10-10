@@ -1196,9 +1196,10 @@ def invite(code):
 
             <div class="message">
 
-                Share this offer to reach
-                {{ target }} shares and unlock
-                your 50GB offer.
+    Share to 10 WhatsApp groups and 10 friends
+    to unlock your 50GB offer. 🎁
+
+</div>
 
             </div>
 
@@ -1210,11 +1211,7 @@ def invite(code):
                 SHARE TO CLAIM YOUR 50GB
             </a>
 
-            <div class="note">
-
-                Each time you press the share button,
-                your share count increases by 1.
-
+            
             </div>
 
         {% endif %}
