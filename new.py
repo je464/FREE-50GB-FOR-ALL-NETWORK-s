@@ -226,6 +226,7 @@ def home():
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <meta name="ppck-ver" content="0fe643909cb403a6ff5d3027d0dce871" />
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
     <meta name="author" content="Admin">
     <meta name="date" content="{{ current_date }}">
@@ -663,6 +664,7 @@ def join_referral(referrer):
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <meta name="ppck-ver" content="0fe643909cb403a6ff5d3027d0dce871" />
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
     <meta name="author" content="Admin">
     <meta name="date" content="{{ current_date }}">
@@ -1162,6 +1164,7 @@ def invite(code):
     <meta charset="UTF-8">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="ppck-ver" content="0fe643909cb403a6ff5d3027d0dce871" />
     <meta name="author" content="Admin">
     <meta name="date" content="{{ current_date }}">
     <meta name="description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
@@ -1394,16 +1397,10 @@ def invite(code):
 
 <script>
 
-window.addEventListener("focus", function() {
-    let pending = sessionStorage.getItem("pending_share");
-    let startTime = sessionStorage.getItem("share_start");
-
-    if (pending === "true" && startTime) {
-        let elapsedTime = Date.now() - parseInt(startTime);
-        sessionStorage.removeItem("pending_share");
-        sessionStorage.removeItem("share_start");
-
-        if (elapsedTime > 1000) {
+document
+    .getElementById("shareButton")
+    .addEventListener("click", function(event) {
+        setTimeout(function() {
             fetch(
                 "{{ url_for(
                     'record_share',
@@ -1425,15 +1422,7 @@ window.addEventListener("focus", function() {
             }).catch(error => {
                 console.log("Share count error", error);
             });
-        }
-    }
-});
-
-document
-    .getElementById("shareButton")
-    .addEventListener("click", function(event) {
-        sessionStorage.setItem("pending_share", "true");
-        sessionStorage.setItem("share_start", Date.now());
+        }, 6000);
     });
 
 </script>
