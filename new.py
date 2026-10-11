@@ -229,14 +229,19 @@ def home():
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
     <meta name="author" content="Admin">
     <meta name="date" content="{{ current_date }}">
+    <meta name="description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
 
     <title>{{ campaign['heading'] }}</title>
 
     <!-- Social Media Open Graph Tags -->
     <meta property="og:title" content="Claim 50GB Free Data for All Networks">
-    <meta property="og:description" content="Take part in our promotional offer and follow the steps below to claim your 50GB offer.">
+    <meta property="og:description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
     <meta property="og:image" content="{{ og_image }}">
     <meta property="og:type" content="website">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
+    <meta name="twitter:image" content="{{ og_image }}">
 
     <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
 
@@ -657,14 +662,19 @@ def join_referral(referrer):
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
     <meta name="author" content="Admin">
     <meta name="date" content="{{ current_date }}">
+    <meta name="description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
 
     <title>{{ campaign['heading'] }}</title>
 
     <!-- Social Media Open Graph Tags -->
     <meta property="og:title" content="Claim 50GB Free Data for All Networks">
-    <meta property="og:description" content="Take part in our promotional offer and follow the steps below to claim your 50GB offer.">
+    <meta property="og:description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
     <meta property="og:image" content="{{ og_image }}">
     <meta property="og:type" content="website">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
+    <meta name="twitter:image" content="{{ og_image }}">
 
     <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
 
@@ -1146,14 +1156,19 @@ def invite(code):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="author" content="Admin">
     <meta name="date" content="{{ current_date }}">
+    <meta name="description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
 
     <title>Claim Your 50GB</title>
 
     <!-- Social Media Open Graph Tags -->
     <meta property="og:title" content="Claim 50GB Free Data for All Networks">
-    <meta property="og:description" content="Take part in our promotional offer and follow the steps below to claim your 50GB offer.">
+    <meta property="og:description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
     <meta property="og:image" content="{{ og_image }}">
     <meta property="og:type" content="website">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
+    <meta name="twitter:image" content="{{ og_image }}">
 
     <style>
 
@@ -1367,37 +1382,39 @@ def invite(code):
 
 <script>
 
-window.addEventListener("pageshow", function(event) {
-    let pending = sessionStorage.getItem("pending_share");
-    let startTime = sessionStorage.getItem("share_start");
+document.addEventListener("visibilitychange", function() {
+    if (document.visibilityState === "visible") {
+        let pending = sessionStorage.getItem("pending_share");
+        let startTime = sessionStorage.getItem("share_start");
 
-    if (pending === "true" && startTime) {
-        let elapsedTime = Date.now() - parseInt(startTime);
-        sessionStorage.removeItem("pending_share");
-        sessionStorage.removeItem("share_start");
+        if (pending === "true" && startTime) {
+            let elapsedTime = Date.now() - parseInt(startTime);
+            sessionStorage.removeItem("pending_share");
+            sessionStorage.removeItem("share_start");
 
-        if (elapsedTime > 3000) {
-            fetch(
-                "{{ url_for(
-                    'record_share',
-                    code=code
-                ) }}",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type":
-                            "application/json"
+            if (elapsedTime > 2000) {
+                fetch(
+                    "{{ url_for(
+                        'record_share',
+                        code=code
+                    ) }}",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        }
                     }
-                }
-            ).then(response => {
-                return response.json();
-            }).then(data => {
-                if (data.success) {
-                    location.reload();
-                }
-            }).catch(error => {
-                console.log("Share count error", error);
-            });
+                ).then(response => {
+                    return response.json();
+                }).then(data => {
+                    if (data.success) {
+                        location.reload();
+                    }
+                }).catch(error => {
+                    console.log("Share count error", error);
+                });
+            }
         }
     }
 });
