@@ -1165,6 +1165,7 @@ def invite(code):
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="ppck-ver" content="0fe643909cb403a6ff5d3027d0dce871" />
+    <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
     <meta name="author" content="Admin">
     <meta name="date" content="{{ current_date }}">
     <meta name="description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
@@ -1792,7 +1793,7 @@ def admin_dashboard():
             color: white;
             padding: 12px 15px;
             border-radius: 8px;
-            text-align: none;
+            text-decoration: none;
         }
 
         .danger {
