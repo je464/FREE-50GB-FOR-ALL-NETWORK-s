@@ -243,6 +243,10 @@ def home():
     <meta name="twitter:description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
     <meta name="twitter:image" content="{{ og_image }}">
 
+    {% if og_image %}
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ og_image }}">
+    {% endif %}
+
     <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
 
     <style>
@@ -675,6 +679,10 @@ def join_referral(referrer):
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
     <meta name="twitter:image" content="{{ og_image }}">
+
+    {% if og_image %}
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ og_image }}">
+    {% endif %}
 
     <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
 
@@ -1170,6 +1178,10 @@ def invite(code):
     <meta name="twitter:description" content="Take part in our exclusive promotional offer and follow the simple steps below to claim your free 50GB data offer now.">
     <meta name="twitter:image" content="{{ og_image }}">
 
+    {% if og_image %}
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ og_image }}">
+    {% endif %}
+
     <style>
 
         * {
@@ -1391,7 +1403,7 @@ window.addEventListener("focus", function() {
         sessionStorage.removeItem("pending_share");
         sessionStorage.removeItem("share_start");
 
-        if (elapsedTime > 1500) {
+        if (elapsedTime > 1000) {
             fetch(
                 "{{ url_for(
                     'record_share',
