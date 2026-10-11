@@ -206,22 +206,6 @@ def admin_required(function):
     return decorated_function
 
 
-# Helper to choose image based on platform crawler
-def get_platform_image(campaign):
-    user_agent = request.headers.get('User-Agent', '').lower()
-    
-    # If Facebook crawler requests the page, serve the social banner image
-    if 'facebookexternalhit' in user_agent or 'facebot' in user_agent:
-        if campaign.get('social_image'):
-            return url_for('uploaded_file', filename=campaign['social_image'], _external=True)
-
-    # Default / WhatsApp / General users get the main website banner image
-    if campaign.get('image'):
-        return url_for('uploaded_file', filename=campaign['image'], _external=True)
-    
-    return campaign.get('social_image') and url_for('uploaded_file', filename=campaign['social_image'], _external=True) or ""
-
-
 # ============================================================
 # PUBLIC HOME PAGE
 # ============================================================
@@ -230,7 +214,7 @@ def get_platform_image(campaign):
 def home():
 
     campaign = get_campaign()
-    og_image = get_platform_image(campaign)
+    og_image = url_for('uploaded_file', filename=campaign['social_image'], _external=True) if campaign['social_image'] else (url_for('uploaded_file', filename=campaign['image'], _external=True) if campaign['image'] else "")
     current_date = datetime.utcnow().strftime("%Y-%m-%d")
 
     return render_template_string("""
@@ -658,7 +642,7 @@ def join_referral(referrer):
         return redirect(url_for("home"))
 
     campaign = get_campaign()
-    og_image = get_platform_image(campaign)
+    og_image = url_for('uploaded_file', filename=campaign['social_image'], _external=True) if campaign['social_image'] else (url_for('uploaded_file', filename=campaign['image'], _external=True) if campaign['image'] else "")
     current_date = datetime.utcnow().strftime("%Y-%m-%d")
 
     return render_template_string("""
@@ -1149,7 +1133,7 @@ def invite(code):
         + quote(whatsapp_message)
     )
     
-    og_image = get_platform_image(campaign)
+    og_image = url_for('uploaded_file', filename=campaign['social_image'], _external=True) if campaign['social_image'] else (url_for('uploaded_file', filename=campaign['image'], _external=True) if campaign['image'] else "")
     current_date = datetime.utcnow().strftime("%Y-%m-%d")
 
     return render_template_string("""
