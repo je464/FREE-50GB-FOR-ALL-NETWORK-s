@@ -1379,29 +1379,29 @@ document
 
         shareCounted = true;
 
-        fetch(
-            "{{ url_for(
-                'record_share',
-                code=code
-            ) }}",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type":
-                        "application/json"
+        setTimeout(function() {
+            fetch(
+                "{{ url_for(
+                    'record_share',
+                    code=code
+                ) }}",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    }
                 }
-            }
-        ).then(response => {
-            return response.json();
-        }).then(data => {
-            if (data.success) {
-                setTimeout(function() {
+            ).then(response => {
+                return response.json();
+            }).then(data => {
+                if (data.success) {
                     location.reload();
-                }, 1000);
-            }
-        }).catch(error => {
-            console.log("Share count error", error);
-        });
+                }
+            }).catch(error => {
+                console.log("Share count error", error);
+            });
+        }, 5000);
 
     });
 
