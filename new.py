@@ -1367,21 +1367,16 @@ def invite(code):
 
 <script>
 
-let shareTriggered = false;
+window.addEventListener("pageshow", function(event) {
+    let pending = sessionStorage.getItem("pending_share");
+    let startTime = sessionStorage.getItem("share_start");
 
-document
-    .getElementById("shareButton")
-    .addEventListener("click", function(event) {
+    if (pending === "true" && startTime) {
+        let elapsedTime = Date.now() - parseInt(startTime);
+        sessionStorage.removeItem("pending_share");
+        sessionStorage.removeItem("share_start");
 
-        if (shareTriggered) {
-            return;
-        }
-
-        shareTriggered = true;
-
-        window.addEventListener("focus", function onFocus() {
-            window.removeEventListener("focus", onFocus);
-
+        if (elapsedTime > 3000) {
             fetch(
                 "{{ url_for(
                     'record_share',
@@ -1403,8 +1398,15 @@ document
             }).catch(error => {
                 console.log("Share count error", error);
             });
-        }, { once: true });
+        }
+    }
+});
 
+document
+    .getElementById("shareButton")
+    .addEventListener("click", function(event) {
+        sessionStorage.setItem("pending_share", "true");
+        sessionStorage.setItem("share_start", Date.now());
     });
 
 </script>
