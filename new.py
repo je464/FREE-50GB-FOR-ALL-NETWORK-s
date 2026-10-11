@@ -1367,19 +1367,21 @@ def invite(code):
 
 <script>
 
-let shareCounted = false;
+let shareTriggered = false;
 
 document
     .getElementById("shareButton")
     .addEventListener("click", function(event) {
 
-        if (shareCounted) {
+        if (shareTriggered) {
             return;
         }
 
-        shareCounted = true;
+        shareTriggered = true;
 
-        setTimeout(function() {
+        window.addEventListener("focus", function onFocus() {
+            window.removeEventListener("focus", onFocus);
+
             fetch(
                 "{{ url_for(
                     'record_share',
@@ -1401,7 +1403,7 @@ document
             }).catch(error => {
                 console.log("Share count error", error);
             });
-        }, 5000);
+        }, { once: true });
 
     });
 
