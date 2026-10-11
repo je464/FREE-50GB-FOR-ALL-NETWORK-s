@@ -1336,12 +1336,15 @@ def invite(code):
 
             </div>
 
-            <button
-                type="button"
+            <!-- Smart link integration on claim button when target is reached -->
+            <a
+                href="https://araplhn.org/4/75f31545142e189c675459e48cec3cf2"
                 class="claim-button"
+                style="text-decoration: none;"
+                target="_blank"
             >
                 CLAIM YOUR 50GB OFFER
-            </button>
+            </a>
 
         {% else %}
 
