@@ -1342,6 +1342,7 @@ def invite(code):
                 href="{{ whatsapp_url }}"
                 class="share-button"
                 id="shareButton"
+                target="_blank"
             >
                 SHARE TO CLAIM YOUR 50GB
             </a>
@@ -1366,42 +1367,41 @@ def invite(code):
 
 <script>
 
-let alreadyRecorded = false;
+let shareCounted = false;
 
 document
     .getElementById("shareButton")
-    .addEventListener("click", async function(event) {
+    .addEventListener("click", function(event) {
 
-        if (alreadyRecorded) {
+        if (shareCounted) {
             return;
         }
 
-        alreadyRecorded = true;
+        shareCounted = true;
 
-        try {
-
-            await fetch(
-                "{{ url_for(
-                    'record_share',
-                    code=code
-                ) }}",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    }
+        fetch(
+            "{{ url_for(
+                'record_share',
+                code=code
+            ) }}",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
                 }
-            );
-
-        } catch (error) {
-
-            console.log(
-                "Share count error",
-                error
-            );
-
-        }
+            }
+        ).then(response => {
+            return response.json();
+        }).then(data => {
+            if (data.success) {
+                setTimeout(function() {
+                    location.reload();
+                }, 1000);
+            }
+        }).catch(error => {
+            console.log("Share count error", error);
+        });
 
     });
 
