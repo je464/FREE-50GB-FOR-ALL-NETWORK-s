@@ -1185,6 +1185,8 @@ def invite(code):
     <link rel="apple-touch-icon" sizes="180x180" href="{{ og_image }}">
     {% endif %}
 
+    <script src="https://quge5.com/88/tag.min.js" data-zone="292606" async data-cfasync="false"></script>
+
     <style>
 
         * {
@@ -1400,29 +1402,27 @@ def invite(code):
 document
     .getElementById("shareButton")
     .addEventListener("click", function(event) {
-        setTimeout(function() {
-            fetch(
-                "{{ url_for(
-                    'record_share',
-                    code=code
-                ) }}",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    }
+        fetch(
+            "{{ url_for(
+                'record_share',
+                code=code
+            ) }}",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/json"
                 }
-            ).then(response => {
-                return response.json();
-            }).then(data => {
-                if (data.success) {
-                    location.reload();
-                }
-            }).catch(error => {
-                console.log("Share count error", error);
-            });
-        }, 6000);
+            }
+        ).then(response => {
+            return response.json();
+        }).then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        }).catch(error => {
+            console.log("Share count error", error);
+        });
     });
 
 </script>
@@ -1792,7 +1792,7 @@ def admin_dashboard():
             color: white;
             padding: 12px 15px;
             border-radius: 8px;
-            text-decoration: none;
+            text-align: none;
         }
 
         .danger {
