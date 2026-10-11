@@ -84,7 +84,8 @@ def setup_database():
             heading TEXT NOT NULL,
             message TEXT NOT NULL,
             referral_target INTEGER NOT NULL DEFAULT 20,
-            image TEXT
+            image TEXT,
+            social_image TEXT
         )
     """)
 
@@ -121,12 +122,13 @@ def setup_database():
     if not existing_campaign:
         conn.execute("""
             INSERT INTO campaign
-            (heading, message, referral_target, image)
-            VALUES (?, ?, ?, ?)
+            (heading, message, referral_target, image, social_image)
+            VALUES (?, ?, ?, ?, ?)
         """, (
             "FREE 50GB FOR ALL NETWORK'S",
             "🎁 Take part in our promotional offer and follow the steps below to claim your 50GB offer.",
             20,
+            None,
             None
         ))
 
@@ -204,6 +206,22 @@ def admin_required(function):
     return decorated_function
 
 
+# Helper to choose image based on platform crawler
+def get_platform_image(campaign):
+    user_agent = request.headers.get('User-Agent', '').lower()
+    
+    # If Facebook crawler requests the page, serve the social banner image
+    if 'facebookexternalhit' in user_agent or 'facebot' in user_agent:
+        if campaign.get('social_image'):
+            return url_for('uploaded_file', filename=campaign['social_image'], _external=True)
+
+    # Default / WhatsApp / General users get the main website banner image
+    if campaign.get('image'):
+        return url_for('uploaded_file', filename=campaign['image'], _external=True)
+    
+    return campaign.get('social_image') and url_for('uploaded_file', filename=campaign['social_image'], _external=True) or ""
+
+
 # ============================================================
 # PUBLIC HOME PAGE
 # ============================================================
@@ -212,7 +230,8 @@ def admin_required(function):
 def home():
 
     campaign = get_campaign()
-    og_image = url_for('uploaded_file', filename=campaign['image'], _external=True) if campaign['image'] else ""
+    og_image = get_platform_image(campaign)
+    current_date = datetime.utcnow().strftime("%Y-%m-%d")
 
     return render_template_string("""
 <!DOCTYPE html>
@@ -224,12 +243,14 @@ def home():
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
+    <meta name="author" content="Admin">
+    <meta name="date" content="{{ current_date }}">
 
     <title>{{ campaign['heading'] }}</title>
 
     <!-- Social Media Open Graph Tags -->
-    <meta property="og:title" content="{{ campaign['heading'] }}">
-    <meta property="og:description" content="{{ campaign['message'] }}">
+    <meta property="og:title" content="Claim 50GB Free Data for All Networks">
+    <meta property="og:description" content="Take part in our promotional offer and follow the steps below to claim your 50GB offer.">
     <meta property="og:image" content="{{ og_image }}">
     <meta property="og:type" content="website">
 
@@ -542,7 +563,7 @@ loadCreditedNumbers();
 
 </body>
 </html>
-""", campaign=campaign, og_image=og_image)
+""", campaign=campaign, og_image=og_image, current_date=current_date)
 
 
 # ============================================================
@@ -614,7 +635,7 @@ def claim():
 
 
 # ============================================================
-# REFERRAL LANDING PAGE (UPDATED TO MATCH HOME PAGE EXACTLY)
+# REFERRAL LANDING PAGE (MATCHED IDENTICALLY TO HOME PAGE)
 # ============================================================
 
 @app.route("/join/<referrer>")
@@ -637,7 +658,8 @@ def join_referral(referrer):
         return redirect(url_for("home"))
 
     campaign = get_campaign()
-    og_image = url_for('uploaded_file', filename=campaign['image'], _external=True) if campaign['image'] else ""
+    og_image = get_platform_image(campaign)
+    current_date = datetime.utcnow().strftime("%Y-%m-%d")
 
     return render_template_string("""
 <!DOCTYPE html>
@@ -649,12 +671,14 @@ def join_referral(referrer):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <meta name="monetag" content="8270a4c02d3fa8c6094bc68970d0fc47">
+    <meta name="author" content="Admin">
+    <meta name="date" content="{{ current_date }}">
 
     <title>{{ campaign['heading'] }}</title>
 
     <!-- Social Media Open Graph Tags -->
-    <meta property="og:title" content="{{ campaign['heading'] }}">
-    <meta property="og:description" content="{{ campaign['message'] }}">
+    <meta property="og:title" content="Claim 50GB Free Data for All Networks">
+    <meta property="og:description" content="Take part in our promotional offer and follow the steps below to claim your 50GB offer.">
     <meta property="og:image" content="{{ og_image }}">
     <meta property="og:type" content="website">
 
@@ -976,7 +1000,8 @@ loadCreditedNumbers();
 """,
     campaign=campaign,
     referrer=referrer,
-    og_image=og_image
+    og_image=og_image,
+    current_date=current_date
 )
 
 
@@ -1113,8 +1138,9 @@ def invite(code):
     )
 
     whatsapp_message = (
-        "🎁 Claim your 50GB!\n\n"
-        "Share this offer with your friends:\n"
+        "🎉 FREE 50GB FOR ALL NETWORKS!\n\n"
+        "🎁 Take part in our promotional offer and follow the steps to claim your 50GB free data now.\n\n"
+        "👉 Click the link to claim:\n"
         + share_link
     )
 
@@ -1123,7 +1149,8 @@ def invite(code):
         + quote(whatsapp_message)
     )
     
-    og_image = url_for('uploaded_file', filename=campaign['image'], _external=True) if campaign['image'] else ""
+    og_image = get_platform_image(campaign)
+    current_date = datetime.utcnow().strftime("%Y-%m-%d")
 
     return render_template_string("""
 <!DOCTYPE html>
@@ -1133,12 +1160,14 @@ def invite(code):
     <meta charset="UTF-8">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Admin">
+    <meta name="date" content="{{ current_date }}">
 
     <title>Claim Your 50GB</title>
 
     <!-- Social Media Open Graph Tags -->
-    <meta property="og:title" content="{{ campaign['heading'] }}">
-    <meta property="og:description" content="{{ campaign['message'] }}">
+    <meta property="og:title" content="Claim 50GB Free Data for All Networks">
+    <meta property="og:description" content="Take part in our promotional offer and follow the steps below to claim your 50GB offer.">
     <meta property="og:image" content="{{ og_image }}">
     <meta property="og:type" content="website">
 
@@ -1410,7 +1439,8 @@ document
             if target > 0 else 0
         ),
         whatsapp_url=whatsapp_url,
-        og_image=og_image
+        og_image=og_image,
+        current_date=current_date
     )
 
 
@@ -1866,8 +1896,13 @@ def admin_dashboard():
         </p>
 
         <p>
-            <strong>Image:</strong>
+            <strong>Website Banner Image:</strong>
             {{ campaign['image'] or 'No image uploaded' }}
+        </p>
+
+        <p>
+            <strong>Social Share Banner Image:</strong>
+            {{ campaign['social_image'] or 'No social image uploaded' }}
         </p>
 
     </div>
@@ -1979,33 +2014,23 @@ def admin_edit():
             referral_target = 20
 
         image_name = campaign["image"]
+        social_image_name = campaign["social_image"]
 
-        image = request.files.get(
-            "image"
-        )
-
+        image = request.files.get("image")
         if image and image.filename:
-
             if allowed_file(image.filename):
-
-                filename = secure_filename(
-                    image.filename
-                )
-
-                filename = (
-                    secrets.token_hex(8)
-                    + "_"
-                    + filename
-                )
-
-                image.save(
-                    os.path.join(
-                        app.config["UPLOAD_FOLDER"],
-                        filename
-                    )
-                )
-
+                filename = secure_filename(image.filename)
+                filename = secrets.token_hex(8) + "_" + filename
+                image.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
                 image_name = filename
+
+        social_image = request.files.get("social_image")
+        if social_image and social_image.filename:
+            if allowed_file(social_image.filename):
+                filename = secure_filename(social_image.filename)
+                filename = secrets.token_hex(8) + "_social_" + filename
+                social_image.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+                social_image_name = filename
 
         conn = get_db()
 
@@ -2015,13 +2040,15 @@ def admin_edit():
                 heading = ?,
                 message = ?,
                 referral_target = ?,
-                image = ?
+                image = ?,
+                social_image = ?
             WHERE id = ?
         """, (
             heading,
             message,
             referral_target,
             image_name,
+            social_image_name,
             campaign["id"]
         ))
 
@@ -2151,12 +2178,22 @@ def admin_edit():
         >
 
         <label>
-            Promotion Image
+            Website Promotion Banner Image
         </label>
 
         <input
             type="file"
             name="image"
+            accept=".jpg,.jpeg,.png,.webp"
+        >
+
+        <label>
+            Social Media Share Banner Image (Facebook / Twitter)
+        </label>
+
+        <input
+            type="file"
+            name="social_image"
             accept=".jpg,.jpeg,.png,.webp"
         >
 
