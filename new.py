@@ -1382,39 +1382,37 @@ def invite(code):
 
 <script>
 
-document.addEventListener("visibilitychange", function() {
-    if (document.visibilityState === "visible") {
-        let pending = sessionStorage.getItem("pending_share");
-        let startTime = sessionStorage.getItem("share_start");
+window.addEventListener("focus", function() {
+    let pending = sessionStorage.getItem("pending_share");
+    let startTime = sessionStorage.getItem("share_start");
 
-        if (pending === "true" && startTime) {
-            let elapsedTime = Date.now() - parseInt(startTime);
-            sessionStorage.removeItem("pending_share");
-            sessionStorage.removeItem("share_start");
+    if (pending === "true" && startTime) {
+        let elapsedTime = Date.now() - parseInt(startTime);
+        sessionStorage.removeItem("pending_share");
+        sessionStorage.removeItem("share_start");
 
-            if (elapsedTime > 2000) {
-                fetch(
-                    "{{ url_for(
-                        'record_share',
-                        code=code
-                    ) }}",
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        }
+        if (elapsedTime > 1500) {
+            fetch(
+                "{{ url_for(
+                    'record_share',
+                    code=code
+                ) }}",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json"
                     }
-                ).then(response => {
-                    return response.json();
-                }).then(data => {
-                    if (data.success) {
-                        location.reload();
-                    }
-                }).catch(error => {
-                    console.log("Share count error", error);
-                });
-            }
+                }
+            ).then(response => {
+                return response.json();
+            }).then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            }).catch(error => {
+                console.log("Share count error", error);
+            });
         }
     }
 });
