@@ -84,10 +84,32 @@ def setup_database():
             heading TEXT NOT NULL,
             message TEXT NOT NULL,
             referral_target INTEGER NOT NULL DEFAULT 20,
+            offer_heading TEXT NOT NULL DEFAULT '🎁 Claim Your 50GB',
+            offer_text TEXT NOT NULL DEFAULT 'Enter your phone number below to continue.',
+            continue_button_text TEXT NOT NULL DEFAULT 'CONTINUE',
+            small_note TEXT NOT NULL DEFAULT 'Follow the steps to continue with the promotion.',
+            share_instruction TEXT NOT NULL DEFAULT 'Share to 10 WhatsApp groups and 10 friends to unlock your 50GB offer. 🎁',
+            share_button_text TEXT NOT NULL DEFAULT 'SHARE TO CLAIM YOUR 50GB',
+            claim_button_text TEXT NOT NULL DEFAULT 'CLAIM YOUR 50GB OFFER',
             image TEXT,
             social_image TEXT
         )
     """)
+
+    columns_to_add = [
+        ("offer_heading", "TEXT NOT NULL DEFAULT '🎁 Claim Your 50GB'"),
+        ("offer_text", "TEXT NOT NULL DEFAULT 'Enter your phone number below to continue.'"),
+        ("continue_button_text", "TEXT NOT NULL DEFAULT 'CONTINUE'"),
+        ("small_note", "TEXT NOT NULL DEFAULT 'Follow the steps to continue with the promotion.'"),
+        ("share_instruction", "TEXT NOT NULL DEFAULT 'Share to 10 WhatsApp groups and 10 friends to unlock your 50GB offer. 🎁'"),
+        ("share_button_text", "TEXT NOT NULL DEFAULT 'SHARE TO CLAIM YOUR 50GB'"),
+        ("claim_button_text", "TEXT NOT NULL DEFAULT 'CLAIM YOUR 50GB OFFER'")
+    ]
+    for col_name, col_def in columns_to_add:
+        try:
+            conn.execute(f"ALTER TABLE campaign ADD COLUMN {col_name} {col_def}")
+        except sqlite3.OperationalError:
+            pass
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS participants (
@@ -122,12 +144,19 @@ def setup_database():
     if not existing_campaign:
         conn.execute("""
             INSERT INTO campaign
-            (heading, message, referral_target, image, social_image)
-            VALUES (?, ?, ?, ?, ?)
+            (heading, message, referral_target, offer_heading, offer_text, continue_button_text, small_note, share_instruction, share_button_text, claim_button_text, image, social_image)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             "FREE 50GB FOR ALL NETWORK'S",
             "🎁 Take part in our promotional offer and follow the steps below to claim your 50GB offer.",
             20,
+            "🎁 Claim Your 50GB",
+            "Enter your phone number below to continue.",
+            "CONTINUE",
+            "Follow the steps to continue with the promotion.",
+            "Share to 10 WhatsApp groups and 10 friends to unlock your 50GB offer. 🎁",
+            "SHARE TO CLAIM YOUR 50GB",
+            "CLAIM YOUR 50GB OFFER",
             None,
             None
         ))
@@ -410,10 +439,10 @@ def home():
 
         <div class="offer">
 
-            <h2>🎁 Claim Your 50GB</h2>
+            <h2>{{ campaign['offer_heading'] }}</h2>
 
             <p>
-                Enter your phone number below to continue.
+                {{ campaign['offer_text'] }}
             </p>
 
         </div>
@@ -428,13 +457,13 @@ def home():
             >
 
             <button type="submit">
-                CONTINUE
+                {{ campaign['continue_button_text'] }}
             </button>
 
         </form>
 
         <div class="small">
-            Follow the steps to continue with the promotion.
+            {{ campaign['small_note'] }}
         </div>
 
     </div>
@@ -848,10 +877,10 @@ def join_referral(referrer):
 
         <div class="offer">
 
-            <h2>🎁 Claim Your 50GB</h2>
+            <h2>{{ campaign['offer_heading'] }}</h2>
 
             <p>
-                Enter your phone number below to continue.
+                {{ campaign['offer_text'] }}
             </p>
 
         </div>
@@ -872,13 +901,13 @@ def join_referral(referrer):
             >
 
             <button type="submit">
-                CONTINUE
+                {{ campaign['continue_button_text'] }}
             </button>
 
         </form>
 
         <div class="small">
-            Follow the steps to continue with the promotion.
+            {{ campaign['small_note'] }}
         </div>
 
     </div>
@@ -1338,12 +1367,12 @@ def invite(code):
 
             <!-- Smart link integration on claim button when target is reached -->
             <a
-                href="https://araplhn.org/4/75f31545142e189c675459e48cec3cf2"
+                href="https://auctionr.org/4/37414a1e1909ab24913b0b081859abad"
                 class="claim-button"
                 style="text-decoration: none;"
                 target="_blank"
             >
-                CLAIM YOUR 50GB OFFER
+                {{ campaign['claim_button_text'] }}
             </a>
 
         {% else %}
@@ -1370,8 +1399,7 @@ def invite(code):
             </div>
 
             <div class="message">
-                Share to 10 WhatsApp groups and 10 friends
-                to unlock your 50GB offer. 🎁
+                {{ campaign['share_instruction'] }}
             </div>
 
             <a
@@ -1380,7 +1408,7 @@ def invite(code):
                 id="shareButton"
                 target="_blank"
             >
-                SHARE TO CLAIM YOUR 50GB
+                {{ campaign['share_button_text'] }}
             </a>
 
             <div class="note"></div>
@@ -2009,6 +2037,41 @@ def admin_edit():
             "20"
         ).strip()
 
+        offer_heading = request.form.get(
+            "offer_heading",
+            ""
+        ).strip()
+
+        offer_text = request.form.get(
+            "offer_text",
+            ""
+        ).strip()
+
+        continue_button_text = request.form.get(
+            "continue_button_text",
+            ""
+        ).strip()
+
+        small_note = request.form.get(
+            "small_note",
+            ""
+        ).strip()
+
+        share_instruction = request.form.get(
+            "share_instruction",
+            ""
+        ).strip()
+
+        share_button_text = request.form.get(
+            "share_button_text",
+            ""
+        ).strip()
+
+        claim_button_text = request.form.get(
+            "claim_button_text",
+            ""
+        ).strip()
+
         try:
             referral_target = int(
                 referral_target
@@ -2048,6 +2111,13 @@ def admin_edit():
                 heading = ?,
                 message = ?,
                 referral_target = ?,
+                offer_heading = ?,
+                offer_text = ?,
+                continue_button_text = ?,
+                small_note = ?,
+                share_instruction = ?,
+                share_button_text = ?,
+                claim_button_text = ?,
                 image = ?,
                 social_image = ?
             WHERE id = ?
@@ -2055,6 +2125,13 @@ def admin_edit():
             heading,
             message,
             referral_target,
+            offer_heading,
+            offer_text,
+            continue_button_text,
+            small_note,
+            share_instruction,
+            share_button_text,
+            claim_button_text,
             image_name,
             social_image_name,
             campaign["id"]
@@ -2108,7 +2185,7 @@ def admin_edit():
         }
 
         textarea {
-            min-height: 150px;
+            min-height: 100px;
         }
 
         button {
@@ -2153,10 +2230,7 @@ def admin_edit():
         enctype="multipart/form-data"
     >
 
-        <label>
-            Heading
-        </label>
-
+        <label>Heading</label>
         <input
             type="text"
             name="heading"
@@ -2164,24 +2238,70 @@ def admin_edit():
             required
         >
 
-        <label>
-            Message
-        </label>
-
+        <label>Message</label>
         <textarea
             name="message"
             required
         >{{ campaign['message'] }}</textarea>
 
-        <label>
-            Referral Target
-        </label>
-
+        <label>Referral Target</label>
         <input
             type="number"
             name="referral_target"
             value="{{ campaign['referral_target'] }}"
             min="1"
+            required
+        >
+
+        <label>Offer Box Heading</label>
+        <input
+            type="text"
+            name="offer_heading"
+            value="{{ campaign['offer_heading'] }}"
+            required
+        >
+
+        <label>Offer Box Text</label>
+        <textarea
+            name="offer_text"
+            required
+        >{{ campaign['offer_text'] }}</textarea>
+
+        <label>Continue Button Text</label>
+        <input
+            type="text"
+            name="continue_button_text"
+            value="{{ campaign['continue_button_text'] }}"
+            required
+        >
+
+        <label>Small Note Text</label>
+        <input
+            type="text"
+            name="small_note"
+            value="{{ campaign['small_note'] }}"
+            required
+        >
+
+        <label>Share Instructions Text (Invite Page)</label>
+        <textarea
+            name="share_instruction"
+            required
+        >{{ campaign['share_instruction'] }}</textarea>
+
+        <label>Share Button Text (Invite Page)</label>
+        <input
+            type="text"
+            name="share_button_text"
+            value="{{ campaign['share_button_text'] }}"
+            required
+        >
+
+        <label>Claim Button Text (Invite Page)</label>
+        <input
+            type="text"
+            name="claim_button_text"
+            value="{{ campaign['claim_button_text'] }}"
             required
         >
 
