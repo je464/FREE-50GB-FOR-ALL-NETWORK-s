@@ -606,7 +606,7 @@ def register_referral():
 
 
 # ============================================================
-# PERSONAL REFERRAL / SHARE PAGE WITH VIDEO LOGIC, COMMENTS & DYNAMIC ADS
+# PERSONAL REFERRAL / SHARE PAGE WITH VIDEO RETURN-JUMP & PROOF COMMENTS
 # ============================================================
 
 @app.route("/invite/<code>")
@@ -677,10 +677,9 @@ def invite(code):
         .message { text-align: center; line-height: 1.6; margin: 20px 0; }
         .share-button { display: block; width: 100%; padding: 16px; border-radius: 10px; background: #25D366; color: white; text-decoration: none; text-align: center; font-weight: bold; font-size: 16px; border: none; cursor: pointer; margin-bottom: 12px; }
         .claim-button { display: block; width: 100%; padding: 17px; border-radius: 10px; background: #0077b6; color: white; text-align: center; font-weight: bold; font-size: 17px; border: none; cursor: pointer; margin-bottom: 12px; text-decoration: none; }
-        .claim-ready { text-align: center; padding: 15px; background: #e8f7ff; border-radius: 12px; margin-bottom: 18px; line-height: 1.5; }
         .back { display: block; text-align: center; margin-top: 20px; color: #0077b6; text-decoration: none; }
         
-        /* Comments section styling */
+        /* Comments & Proof section positioned below buttons */
         .comments-section { margin-top: 35px; border-top: 2px solid #eee; padding-top: 20px; }
         .comments-header { font-weight: bold; font-size: 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
         .comment-item { display: flex; gap: 10px; margin-bottom: 15px; font-size: 14px; line-height: 1.4; background: #f9f9f9; padding: 10px; border-radius: 8px; }
@@ -693,7 +692,7 @@ def invite(code):
         .comment-form { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
         .comment-form textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-family: Arial, sans-serif; resize: vertical; min-height: 60px; }
         .comment-form input[type="file"] { font-size: 13px; }
-        .comment-form button { margin-top: 0; padding: 10px; background: #0077b6; }
+        .comment-form button { margin-top: 0; padding: 10px; background: #0077b6; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -716,7 +715,7 @@ def invite(code):
             {{ campaign['share_instruction'] }}
         </div>
 
-        <!-- Multiple action buttons pointing to Smartlink / Share loop -->
+        <!-- Action Buttons -->
         <a href="{{ whatsapp_url }}" class="share-button" id="actionButton" target="_blank">
             {{ campaign['share_button_text'] }}
         </a>
@@ -725,6 +724,7 @@ def invite(code):
             {{ campaign['claim_button_text'] }}
         </a>
 
+        <!-- Comments and Proof Section at the bottom -->
         <div class="comments-section">
             <div class="comments-header">
                 <span id="commentsTitleLabel">{{ campaign['comments_title'] }}</span>
@@ -757,7 +757,6 @@ def invite(code):
                 </div>
             </div>
 
-            <!-- Comment input form where user can comment and attach image receipts -->
             <div class="comment-form">
                 <textarea id="userCommentInput" placeholder="{{ campaign['comment_input_placeholder'] }}"></textarea>
                 <input type="file" id="userCommentImage" accept="image/*">
@@ -770,9 +769,9 @@ def invite(code):
 </div>
 
 <script>
-// Simulated fast/slow video counter logic
+// Progress tracking logic: fast jump up to 90%, then 1-by-1 counting until 98%
 let currentProgress = parseInt(localStorage.getItem("progress_{{ code }}") || "0");
-let clickState = parseInt(localStorage.getItem("clicks_{{ code }}") || "0");
+let shareReturns = parseInt(localStorage.getItem("returns_{{ code }}") || "0");
 const smartLinkUrl = "https://auctionr.org/4/37414a1e1909ab24913b0b081859abad";
 
 const progressBar = document.getElementById("progressBar");
@@ -798,48 +797,50 @@ function updateDisplay() {
     }
 }
 
-// Initial jump logic on load if 0
-if (currentProgress === 0) {
-    currentProgress = 50;
-    updateDisplay();
-    setTimeout(() => {
+// On return from share click: advance progress fast until 90, then 1 by 1
+function handleShareReturn() {
+    shareReturns++;
+    localStorage.setItem("returns_{{ code }}", shareReturns);
+
+    if (currentProgress < 50) {
+        currentProgress = 50;
+    } else if (currentProgress < 60) {
         currentProgress = 60;
-        updateDisplay();
-    }, 400);
-    setTimeout(() => {
+    } else if (currentProgress < 90) {
         currentProgress = 90;
-        updateDisplay();
-        localStorage.setItem("progress_{{ code }}", currentProgress);
-    }, 800);
+    } else if (currentProgress < 98) {
+        // Once 90% is reached, count one by one per share return
+        currentProgress += 1;
+        if (currentProgress > 98) currentProgress = 98;
+    }
+    localStorage.setItem("progress_{{ code }}", currentProgress);
+    updateDisplay();
+}
+
+// Check if user just returned from sharing window
+window.addEventListener("focus", function() {
+    if (localStorage.getItem("sharing_active_{{ code }}") === "true") {
+        localStorage.removeItem("sharing_active_{{ code }}");
+        handleShareReturn();
+    }
+});
+
+// Initial load
+if (currentProgress === 0) {
+    currentProgress = 0;
+    updateDisplay();
 } else {
     updateDisplay();
 }
 
 actionButton.addEventListener("click", function(e) {
     if (currentProgress < 98) {
-        // Fast counter click phase
-        e.preventDefault();
-        clickState++;
-        if (currentProgress === 90) {
-            currentProgress = 93;
-        } else if (currentProgress === 93) {
-            currentProgress = 96;
-        } else if (currentProgress === 96) {
-            currentProgress = 98;
-        } else {
-            currentProgress = 98;
-        }
-        localStorage.setItem("progress_{{ code }}", currentProgress);
-        updateDisplay();
-
-        // Trigger WhatsApp share loop
-        window.open("{{ whatsapp_url }}", "_blank");
+        // Set flag to detect return when coming back from WhatsApp share
+        localStorage.setItem("sharing_active_{{ code }}", "true");
     } else {
-        // Reached 98% -> opens smartlink ad redirection, returns back to 98%
-        clickState++;
-        if (clickState % 2 === 0) {
-            // After clicking 2 times, ensure state stays locked at 98% asking to share or claim
-        }
+        // At 98%, clicking opens Smartlink ad redirection
+        e.preventDefault();
+        window.open(smartLinkUrl, "_blank");
     }
 });
 
@@ -887,7 +888,6 @@ setInterval(() => {
     document.getElementById("likesCounter").textContent = "❤️ " + likes + " likes";
 }, 9000);
 
-// Local user comment function (only shows locally for the user)
 function postUserComment() {
     const textInput = document.getElementById("userCommentInput");
     const imageInput = document.getElementById("userCommentImage");
@@ -899,7 +899,6 @@ function postUserComment() {
     const div = document.createElement("div");
     div.className = "comment-item";
 
-    let imgHtml = "";
     if (imageInput.files && imageInput.files[0]) {
         const reader = new FileReader();
         reader.onload = function(e) {
